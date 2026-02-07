@@ -163,7 +163,7 @@ npm install
 npm run dev
 ```
 
-L'application sera accessible à **http://localhost:5173**
+L'application sera accessible à **https://learningon-guitar.web.app**
 
 ---
 
