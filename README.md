@@ -333,3 +333,4 @@ Ce projet est sous licence MIT.
 - [Lucide Icons](https://lucide.dev/) pour les icônes
 - [Firebase](https://firebase.google.com/) pour le backend
 - [Vite](https://vitejs.dev/) pour le tooling
+- Moi même pour m'être éclaté à réaliser ce projet xD 
