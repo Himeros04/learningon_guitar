@@ -146,34 +146,60 @@ function validateOcrResponse(data) {
  */
 export async function compressImage(file, maxWidth = 1024, quality = 0.8) {
     return new Promise((resolve, reject) => {
+        if (!file) {
+            return reject(new Error('Aucun fichier sélectionné'));
+        }
+        if (file.size === 0) {
+            return reject(new Error('Le fichier est vide'));
+        }
+        if (!file.type.startsWith('image/')) {
+            return reject(new Error('Le fichier n\'est pas une image valide'));
+        }
+
         const img = new Image();
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
 
         img.onload = () => {
-            // Calculate new dimensions
-            let { width, height } = img;
-            if (width > maxWidth) {
-                height = (height * maxWidth) / width;
-                width = maxWidth;
+            try {
+                // Calculate new dimensions
+                let { width, height } = img;
+                if (width > maxWidth) {
+                    height = (height * maxWidth) / width;
+                    width = maxWidth;
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+                ctx.drawImage(img, 0, 0, width, height);
+
+                // Convert to JPEG base64
+                const dataUrl = canvas.toDataURL('image/jpeg', quality);
+                resolve(dataUrl);
+            } catch (e) {
+                console.error('Compression error:', e);
+                reject(new Error('Erreur lors de la compression de l\'image'));
             }
-
-            canvas.width = width;
-            canvas.height = height;
-            ctx.drawImage(img, 0, 0, width, height);
-
-            // Convert to JPEG base64
-            const dataUrl = canvas.toDataURL('image/jpeg', quality);
-            resolve(dataUrl);
         };
 
-        img.onerror = () => reject(new Error('Erreur de chargement de l\'image'));
+        img.onerror = (e) => {
+            console.error('Image load error:', e);
+            reject(new Error('Impossible de lire le format de l\'image'));
+        };
 
         // Load image from file
         const reader = new FileReader();
         reader.onload = (e) => { img.src = e.target.result; };
-        reader.onerror = () => reject(new Error('Erreur de lecture du fichier'));
-        reader.readAsDataURL(file);
+        reader.onerror = (e) => {
+            console.error('FileReader error:', e);
+            reject(new Error('Erreur de lecture du fichier'));
+        };
+
+        try {
+            reader.readAsDataURL(file);
+        } catch (e) {
+            reject(new Error('Erreur critique lors de la lecture du fichier'));
+        }
     });
 }
 
@@ -182,4 +208,17 @@ export async function compressImage(file, maxWidth = 1024, quality = 0.8) {
  */
 export function isOcrConfigured() {
     return !!GEMINI_API_KEY;
+}
+
+/**
+ * Fallback: Read file as Base64 without compression
+ * Useful if Canvas/Compression fails
+ */
+export function readFileAsBase64(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target.result);
+        reader.onerror = (e) => reject(new Error('Erreur de lecture du fichier (Fallback)'));
+        reader.readAsDataURL(file);
+    });
 }

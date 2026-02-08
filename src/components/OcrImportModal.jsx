@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { X, Camera, Image, Loader2, AlertCircle, Check } from 'lucide-react';
-import { processOcrImage, compressImage, isOcrConfigured } from '../services/ocrService';
+import { processOcrImage, compressImage, isOcrConfigured, readFileAsBase64 } from '../services/ocrService';
 import { convertToChordPro, parseChordProMeta } from '../utils/chordProConverter';
 
 /**
@@ -30,13 +30,31 @@ const OcrImportModal = ({ onClose, onSuccess }) => {
         if (!file) return;
 
         try {
-            // Compress and preview
-            const compressed = await compressImage(file);
-            setSelectedImage(compressed);
-            setImagePreview(compressed);
+            // Try compression first (best for performance/API limits)
+            let processedImage;
+            try {
+                processedImage = await compressImage(file);
+            } catch (compressionError) {
+                console.warn('Compression failed, attempting fallback...', compressionError);
+                // Fallback: read raw file
+                processedImage = await readFileAsBase64(file);
+            }
+
+            setSelectedImage(processedImage);
+            setImagePreview(processedImage);
             setStep('preview');
         } catch (err) {
-            setError('Erreur lors du chargement de l\'image');
+            console.error('File selection error:', err);
+
+            // Try to show preview via object URL even if reading failed (unlikely but possible)
+            try {
+                const objectUrl = URL.createObjectURL(file);
+                setImagePreview(objectUrl);
+            } catch (e) {
+                console.error('Fallback preview failed:', e);
+            }
+
+            setError(err.message || 'Erreur lors du chargement de l\'image');
             setStep('error');
         }
     }, []);
