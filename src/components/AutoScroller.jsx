@@ -1,37 +1,26 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Play, Pause, Plus, Minus } from 'lucide-react';
+import { Play, Pause, ChevronUp, ChevronDown } from 'lucide-react';
+
+// Speed levels with fixed pixels per second
+const SPEED_LEVELS = [
+    { label: 'Pause', value: 0, pps: 0 },
+    { label: '0.5x', value: 0.5, pps: 20 },
+    { label: '1x', value: 1, pps: 40 },
+    { label: '1.5x', value: 1.5, pps: 60 },
+    { label: '2x', value: 2, pps: 80 }
+];
 
 const AutoScroller = ({ targetRef, onScrollingStateChange }) => {
     const [isPlaying, setIsPlaying] = useState(false);
-    const [speed, setSpeed] = useState(2); // Speed level 1-5, default 2
-    const [progress, setProgress] = useState(0);
+    const [speedIndex, setSpeedIndex] = useState(2); // Default to 1x
     const animationFrameRef = useRef(null);
     const isPlayingRef = useRef(false);
-    const speedRef = useRef(speed);
+    const speedRef = useRef(SPEED_LEVELS[2]);
 
     // Keep speedRef in sync
     useEffect(() => {
-        speedRef.current = speed;
-    }, [speed]);
-
-    // Monitor scroll progress
-    useEffect(() => {
-        const element = targetRef.current;
-        if (!element) return;
-
-        const handleScroll = () => {
-            const totalHeight = element.scrollHeight - element.clientHeight;
-            if (totalHeight > 0) {
-                const currentProgress = (element.scrollTop / totalHeight) * 100;
-                setProgress(Math.min(Math.max(currentProgress, 0), 100));
-            }
-        };
-
-        element.addEventListener('scroll', handleScroll);
-        handleScroll();
-
-        return () => element.removeEventListener('scroll', handleScroll);
-    }, [targetRef]);
+        speedRef.current = SPEED_LEVELS[speedIndex];
+    }, [speedIndex]);
 
     // Cleanup on unmount
     useEffect(() => {
@@ -72,8 +61,15 @@ const AutoScroller = ({ targetRef, onScrollingStateChange }) => {
             const el = targetRef.current;
             const currentTotal = el.scrollHeight - el.clientHeight;
 
-            // Speed: pixels per second = speedLevel * 25
-            const pixelsPerSecond = speedRef.current * 25;
+            // Get current speed (pixels per second)
+            const pixelsPerSecond = speedRef.current.pps;
+
+            // If speed is 0 (Pause), just keep the animation running but don't scroll
+            if (pixelsPerSecond === 0) {
+                lastTime = time;
+                animationFrameRef.current = requestAnimationFrame(tick);
+                return;
+            }
 
             const delta = (time - lastTime) / 1000;
             lastTime = time;
@@ -102,8 +98,10 @@ const AutoScroller = ({ targetRef, onScrollingStateChange }) => {
         }
     }, [startScroll, stopScroll]);
 
-    const increaseSpeed = () => setSpeed(s => Math.min(s + 1, 5));
-    const decreaseSpeed = () => setSpeed(s => Math.max(s - 1, 1));
+    const increaseSpeed = () => setSpeedIndex(i => Math.min(i + 1, SPEED_LEVELS.length - 1));
+    const decreaseSpeed = () => setSpeedIndex(i => Math.max(i - 1, 0));
+
+    const currentSpeed = SPEED_LEVELS[speedIndex];
 
     return (
         <>
@@ -113,9 +111,22 @@ const AutoScroller = ({ targetRef, onScrollingStateChange }) => {
                     onClick={decreaseSpeed}
                     className="auto-scroller-speed-btn"
                     aria-label="Réduire la vitesse"
-                    disabled={speed <= 1}
+                    disabled={speedIndex <= 0}
                 >
-                    <Minus size={18} />
+                    <ChevronDown size={18} />
+                </button>
+
+                {/* Speed indicator */}
+                <span className="auto-scroller-speed-label">{currentSpeed.label}</span>
+
+                {/* Speed Up */}
+                <button
+                    onClick={increaseSpeed}
+                    className="auto-scroller-speed-btn"
+                    aria-label="Augmenter la vitesse"
+                    disabled={speedIndex >= SPEED_LEVELS.length - 1}
+                >
+                    <ChevronUp size={18} />
                 </button>
 
                 {/* Play/Pause */}
@@ -126,19 +137,6 @@ const AutoScroller = ({ targetRef, onScrollingStateChange }) => {
                 >
                     {isPlaying ? <Pause fill="white" size={20} /> : <Play fill="white" size={20} style={{ marginLeft: '2px' }} />}
                 </button>
-
-                {/* Speed Up */}
-                <button
-                    onClick={increaseSpeed}
-                    className="auto-scroller-speed-btn"
-                    aria-label="Augmenter la vitesse"
-                    disabled={speed >= 5}
-                >
-                    <Plus size={18} />
-                </button>
-
-                {/* Speed indicator (desktop only) */}
-                <span className="auto-scroller-speed-label">x{speed}</span>
             </div>
 
             <style>{`
@@ -168,8 +166,8 @@ const AutoScroller = ({ targetRef, onScrollingStateChange }) => {
                 }
 
                 .auto-scroller-speed-btn {
-                    width: 36px;
-                    height: 36px;
+                    width: 32px;
+                    height: 32px;
                     border-radius: 50%;
                     background: rgba(255,255,255,0.1);
                     border: 1px solid rgba(255,255,255,0.2);
@@ -191,10 +189,10 @@ const AutoScroller = ({ targetRef, onScrollingStateChange }) => {
                 }
 
                 .auto-scroller-speed-label {
-                    font-size: 0.85rem;
+                    font-size: 0.9rem;
                     font-weight: bold;
                     color: var(--accent-primary);
-                    min-width: 2rem;
+                    min-width: 3rem;
                     text-align: center;
                 }
 
@@ -207,8 +205,8 @@ const AutoScroller = ({ targetRef, onScrollingStateChange }) => {
                             1rem
                         );
                         right: 1rem;
-                        padding: 0.4rem;
-                        gap: 0.4rem;
+                        padding: 0.4rem 0.6rem;
+                        gap: 0.3rem;
                     }
 
                     .auto-scroller-btn {
@@ -217,12 +215,13 @@ const AutoScroller = ({ targetRef, onScrollingStateChange }) => {
                     }
 
                     .auto-scroller-speed-btn {
-                        width: 32px;
-                        height: 32px;
+                        width: 28px;
+                        height: 28px;
                     }
 
                     .auto-scroller-speed-label {
-                        display: none;
+                        font-size: 0.8rem;
+                        min-width: 2.5rem;
                     }
                 }
             `}</style>

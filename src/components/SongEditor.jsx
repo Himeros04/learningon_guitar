@@ -22,7 +22,6 @@ const SongEditor = () => {
     const [artist, setArtist] = useState('');
     const [content, setContent] = useState('');
     const [imageUrl, setImageUrl] = useState('');
-    const [duration, setDuration] = useState(180);
     const [showPreview, setShowPreview] = useState(true);
     const [transpose, setTranspose] = useState(0);
     const [folderId, setFolderId] = useState('');
@@ -59,7 +58,6 @@ const SongEditor = () => {
                     setArtist(song.artist || '');
                     setContent(song.content || '');
                     setImageUrl(song.image || '');
-                    setDuration(song.durationSec || 180);
                     setFolderId(song.folderId || '');
                     setIsFavorite(song.isFavorite || false);
                 }
@@ -80,7 +78,6 @@ const SongEditor = () => {
             artist,
             content,
             image: imageUrl,
-            durationSec: parseInt(duration) || 0,
             folderId: folderId || null,
             type: 'chordpro',
             isFavorite
@@ -251,16 +248,7 @@ const SongEditor = () => {
                     />
                 </div>
 
-                <div className="detail-row">
-                    <span className="text-muted">Durée (sec) :</span>
-                    <input
-                        type="number"
-                        value={duration}
-                        onChange={e => setDuration(e.target.value)}
-                        className="duration-input"
-                    />
-                    <span className="text-muted duration-display">({Math.floor(duration / 60)}m {duration % 60}s)</span>
-                </div>
+
 
                 <div className="detail-section">
                     <select
@@ -562,6 +550,9 @@ const SongEditor = () => {
                     gap: 0.5rem;
                     padding: 0.5rem 0;
                     margin-bottom: 0.5rem;
+                    position: relative;
+                    z-index: 100;
+                    background: var(--bg-primary, #0f0f14);
                 }
 
                 .editor-mobile-header .editor-mobile-title {
@@ -583,6 +574,9 @@ const SongEditor = () => {
                     gap: 0.5rem;
                     margin-bottom: 0.75rem;
                     flex-wrap: wrap;
+                    position: relative;
+                    z-index: 100;
+                    background: var(--bg-primary, #0f0f14);
                 }
 
                 .mobile-control-btn {
@@ -681,7 +675,7 @@ const SongEditor = () => {
                         inset: 0;
                         z-index: 90;
                         border-radius: 0;
-                        padding-top: 60px;
+                        padding-top: 120px;
                         background: var(--bg-primary, #0f0f14);
                     }
 
