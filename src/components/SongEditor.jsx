@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import SmartSongRenderer from './SongRenderer';
-import { Save, ChevronLeft } from 'lucide-react';
+import { Save, ChevronLeft, Maximize2 } from 'lucide-react';
 import AutoScroller from './AutoScroller';
+import FullscreenReader from './FullscreenReader';
 import ImageUploader from './ImageUploader';
 import { useFolders } from '../hooks/useFirestore';
 import { getSong, addSong, updateSong } from '../firebase/firestore';
@@ -24,6 +25,7 @@ const SongEditor = () => {
     const [loading, setLoading] = useState(false);
     const [isFavorite, setIsFavorite] = useState(false);
     const [showDetails, setShowDetails] = useState(false);
+    const [isFullscreen, setIsFullscreen] = useState(false);
 
     const { folders } = useFolders();
     const scrollContainerRef = useRef(null);
@@ -110,6 +112,7 @@ const SongEditor = () => {
                     value={title}
                     onChange={e => setTitle(e.target.value)}
                     className="editor-title-input"
+                    autoComplete="off"
                 />
                 <input
                     type="text"
@@ -117,6 +120,7 @@ const SongEditor = () => {
                     value={artist}
                     onChange={e => setArtist(e.target.value)}
                     className="editor-artist-input"
+                    autoComplete="off"
                 />
 
                 <button className="btn-ghost" onClick={() => setShowPreview(!showPreview)}>
@@ -131,6 +135,16 @@ const SongEditor = () => {
                         </span>
                         <button className="btn-ghost" onClick={() => setTranspose(t => t + 1)}>+</button>
                     </div>
+                )}
+
+                {showPreview && (
+                    <button
+                        className="btn-ghost mode-scene-btn"
+                        onClick={() => setIsFullscreen(true)}
+                        aria-label="Mode Scène"
+                    >
+                        <Maximize2 size={18} /> Mode Scène
+                    </button>
                 )}
 
                 <button className="btn-primary save-btn" onClick={handleSave}>
@@ -164,6 +178,15 @@ const SongEditor = () => {
                         <span>{transpose}</span>
                         <button onClick={() => setTranspose(t => t + 1)}>+</button>
                     </div>
+                )}
+                {showPreview && (
+                    <button
+                        className="mobile-control-btn mode-scene-mobile"
+                        onClick={() => setIsFullscreen(true)}
+                        aria-label="Mode Scène"
+                    >
+                        <Maximize2 size={16} />
+                    </button>
                 )}
             </div>
 
@@ -251,13 +274,26 @@ const SongEditor = () => {
                 </div>
 
                 {/* Auto Scroller */}
-                {showPreview && (
+                {showPreview && !isFullscreen && (
                     <AutoScroller
                         durationSeconds={parseInt(duration) || 180}
                         targetRef={scrollContainerRef}
                     />
                 )}
             </div>
+
+            {/* P1 Feature: Fullscreen Reading Mode */}
+            {isFullscreen && (
+                <FullscreenReader
+                    content={content}
+                    title={title || 'Sans titre'}
+                    artist={artist || 'Artiste inconnu'}
+                    transpose={transpose}
+                    onTransposeChange={setTranspose}
+                    duration={parseInt(duration) || 180}
+                    onClose={() => setIsFullscreen(false)}
+                />
+            )}
 
             <style>{`
                 .editor-container {
@@ -279,19 +315,36 @@ const SongEditor = () => {
                 .editor-title-input {
                     background: transparent;
                     border: none;
+                    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
                     color: white;
                     font-size: 1.2rem;
                     font-weight: bold;
                     flex: 1;
                     min-width: 150px;
+                    padding: 0.5rem 0;
+                    transition: border-color 0.2s;
+                }
+
+                .editor-title-input:focus {
+                    outline: none;
+                    border-bottom-color: var(--accent-primary);
                 }
 
                 .editor-artist-input {
                     background: transparent;
                     border: none;
+                    border-bottom: 1px solid rgba(255, 255, 255, 0.15);
                     color: #94a3b8;
                     flex: 0.5;
                     min-width: 100px;
+                    padding: 0.5rem 0;
+                    transition: border-color 0.2s;
+                }
+
+                .editor-artist-input:focus {
+                    outline: none;
+                    border-bottom-color: var(--accent-primary);
+                    color: white;
                 }
 
                 .transpose-controls {
@@ -321,6 +374,28 @@ const SongEditor = () => {
                     display: flex;
                     align-items: center;
                     gap: 0.5rem;
+                }
+
+                .mode-scene-btn {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                    border: 1px solid var(--accent-primary);
+                    color: var(--accent-primary);
+                }
+
+                .mode-scene-btn:hover {
+                    background: rgba(99, 102, 241, 0.1);
+                    color: white;
+                }
+
+                .mode-scene-mobile {
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    padding: 0.5rem !important;
+                    min-width: 44px;
+                    flex: 0 !important;
                 }
 
                 .editor-details {
