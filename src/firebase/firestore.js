@@ -407,30 +407,7 @@ export const deleteChord = async (chordId) => {
     await deleteDoc(doc(db, COLLECTIONS.CHORDS, chordId));
 };
 
-export default {
-    // Songs
-    getSongs,
-    getSongsByFolder,
-    getFavoriteSongs,
-    getSong,
-    addSong,
-    updateSong,
-    deleteSong,
-    subscribeSongs,
-    // Folders
-    getFolders,
-    addFolder,
-    updateFolder,
-    deleteFolder,
-    subscribeFolders,
-    // Chords
-    getChords,
-    addChord,
-    updateChord,
-    deleteChord,
-    subscribeChords,
-    seedInitialChords
-};
+
 
 /**
  * Subscribe to user's chords (real-time)
@@ -549,4 +526,48 @@ export const seedInitialChords = async (userId) => {
     for (const chord of STARTER_CHORDS) {
         await addChord(userId, chord);
     }
+};
+
+/**
+ * Get ALL songs for Admin Dashboard
+ * @returns {Promise<Array>}
+ */
+export const getAllSongsAdmin = async () => {
+    try {
+        const q = query(collection(db, COLLECTIONS.SONGS), orderBy('updatedAt', 'desc'));
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        }));
+    } catch (error) {
+        console.error("Error fetching all songs:", error);
+        return [];
+    }
+};
+
+export default {
+    // Songs
+    getSongs,
+    getSongsByFolder,
+    getFavoriteSongs,
+    getSong,
+    addSong,
+    updateSong,
+    deleteSong,
+    subscribeSongs,
+    // Folders
+    getFolders,
+    addFolder,
+    updateFolder,
+    deleteFolder,
+    subscribeFolders,
+    // Chords
+    getChords,
+    addChord,
+    updateChord,
+    deleteChord,
+    subscribeChords,
+    seedInitialChords,
+    getAllSongsAdmin
 };

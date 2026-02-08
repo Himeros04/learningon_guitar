@@ -19,7 +19,9 @@ const FullscreenReader = ({
     transpose,
     onTransposeChange,
     duration,
-    onClose
+
+    onClose,
+    onComplete
 }) => {
     const containerRef = useRef(null);
 
@@ -99,6 +101,7 @@ const FullscreenReader = ({
             {/* AutoScroller positioned for fullscreen */}
             <AutoScroller
                 targetRef={containerRef}
+                onComplete={onComplete}
             />
 
             <style>{`

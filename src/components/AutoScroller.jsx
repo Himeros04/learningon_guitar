@@ -10,7 +10,7 @@ const SPEED_LEVELS = [
     { label: '2x', value: 2, pps: 80 }
 ];
 
-const AutoScroller = ({ targetRef, onScrollingStateChange }) => {
+const AutoScroller = ({ targetRef, onScrollingStateChange, onComplete }) => {
     const [isPlaying, setIsPlaying] = useState(false);
     const [speedIndex, setSpeedIndex] = useState(2); // Default to 1x
     const animationFrameRef = useRef(null);
@@ -82,6 +82,7 @@ const AutoScroller = ({ targetRef, onScrollingStateChange }) => {
             // Check if reached bottom
             if (el.scrollTop >= currentTotal - 1) {
                 stopScroll();
+                if (onComplete) onComplete();
             } else {
                 animationFrameRef.current = requestAnimationFrame(tick);
             }

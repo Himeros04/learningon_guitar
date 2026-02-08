@@ -1,18 +1,61 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
+import useDebounce from '../hooks/useDebounce';
 import { parseChordPro } from '../utils/chordProParser';
 import { transposeChord } from '../utils/transposer';
 import { getChordData } from '../db/chords';
 import ChordDiagram from './ChordDiagram';
-import { X } from 'lucide-react';
+import { X, Lightbulb } from 'lucide-react';
 import { subscribeChords } from '../firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
-
-const SmartSongRenderer = ({ content, fontSize = 16, transpose = 0 }) => {
+import { findSmartCapo } from '../services/SmartCapo';
+import { useGamification } from '../contexts/GamificationContext';
+const SmartSongRenderer = ({ content, fontSize = 16, transpose = 0, showSmartCapo = false }) => {
     const { user } = useAuth();
+    const { addXp, unlockBadge } = useGamification();
     const lines = useMemo(() => parseChordPro(content), [content]);
+
+    // Smart Capo Logic
+    const [capoSuggestion, setCapoSuggestion] = useState(null);
+    const [dismissedCapo, setDismissedCapo] = useState(false);
+
+    // Debounce content updates to avoid recalculating on every keystroke
+    const debouncedLines = useDebounce(lines, 1000);
+
+    useEffect(() => {
+        if (!debouncedLines || !showSmartCapo) return;
+
+        try {
+            // Extract all chords from content
+            const allChords = [];
+            debouncedLines.forEach(line => {
+                if (line && line.tokens) {
+                    line.tokens.forEach(token => {
+                        if (token.type === 'chord') allChords.push(token.content);
+                    });
+                }
+            });
+
+            // Run Smart Capo algorithm
+            const suggestion = findSmartCapo(allChords);
+            setCapoSuggestion(suggestion);
+        } catch (err) {
+            console.error("Smart Capo Error:", err);
+            // Non-fatal, just ignore
+        }
+    }, [debouncedLines, showSmartCapo]);
+
+    const handleApplyCapo = () => {
+        addXp(10, 'Smart Capo');
+        unlockBadge('arrangeur_malin');
+        setDismissedCapo(true);
+        alert(`Conseil : Placez le Capodastre en case ${capoSuggestion.capo} et jouez comme si vous étiez en bas du manche !`);
+    };
 
     // Fetch custom chords from Firebase
     const [customChords, setCustomChords] = useState([]);
+    const hoverTimeoutRef = useRef(null);
+    const [selectedChord, setSelectedChord] = useState(null);
+    const [isLocked, setIsLocked] = useState(false);
 
     useEffect(() => {
         if (!user) {
@@ -23,14 +66,10 @@ const SmartSongRenderer = ({ content, fontSize = 16, transpose = 0 }) => {
         return () => unsubscribe();
     }, [user]);
 
-    const [selectedChord, setSelectedChord] = useState(null);
-    const [isLocked, setIsLocked] = useState(false); // Track if tooltip was opened via click
-    const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
-    const hoverTimeoutRef = useRef(null);
-
     // Handle both click and hover events
+    const [tooltipState, setTooltipState] = useState({ x: 0, y: 0, placement: 'top' });
+
     const handleChordInteraction = (e, chordName, isClick = false) => {
-        // Clear any pending close timer
         if (hoverTimeoutRef.current) {
             clearTimeout(hoverTimeoutRef.current);
             hoverTimeoutRef.current = null;
@@ -39,24 +78,18 @@ const SmartSongRenderer = ({ content, fontSize = 16, transpose = 0 }) => {
         const cleanName = chordName.trim();
         const actualChord = transposeChord(cleanName, transpose);
 
-        // 1. Try to find in custom DB first
         let data = null;
         if (customChords) {
             const customMatch = customChords.find(c => c.name === actualChord);
             if (customMatch && customMatch.data) {
-                // Normalize custom data structure for diagram
-                // DB stores { positions: [...] } or { strings: ... }
-                // Diagram expects { positions: [...] } preferred
                 if (customMatch.data.positions) {
                     data = customMatch.data;
                 } else {
-                    // Legacy wrapper
                     data = { positions: [customMatch.data] };
                 }
             }
         }
 
-        // 2. Fallback to static DB
         if (!data) {
             data = getChordData(actualChord);
         }
@@ -66,19 +99,31 @@ const SmartSongRenderer = ({ content, fontSize = 16, transpose = 0 }) => {
             const viewportWidth = window.innerWidth;
             const viewportHeight = window.innerHeight;
 
-            // Calculate position, keeping tooltip on screen
-            let x = rect.left + (rect.width / 2);
-            let y = rect.top;
+            // Default: Mobile Bottom
+            let newState = { x: 0, y: 0, placement: 'mobile-bottom' };
 
-            // Keep tooltip within viewport
-            const tooltipWidth = 140;
-            const tooltipHeight = 180;
+            // Desktop Logic
+            if (viewportWidth > 768) {
+                const tooltipWidth = 140; // Approx
+                // Try Right Side
+                if (rect.right + tooltipWidth + 20 < viewportWidth) {
+                    newState = {
+                        x: rect.right + 10,
+                        y: rect.top + (rect.height / 2),
+                        placement: 'right'
+                    };
+                }
+                // Fallback to Left Side
+                else {
+                    newState = {
+                        x: rect.left - 10,
+                        y: rect.top + (rect.height / 2),
+                        placement: 'left'
+                    };
+                }
+            }
 
-            if (x - tooltipWidth / 2 < 10) x = tooltipWidth / 2 + 10;
-            if (x + tooltipWidth / 2 > viewportWidth - 10) x = viewportWidth - tooltipWidth / 2 - 10;
-            if (y - tooltipHeight < 10) y = rect.bottom + tooltipHeight + 20;
-
-            setTooltipPos({ x, y });
+            setTooltipState(newState);
             setSelectedChord({ name: actualChord, data });
 
             if (isClick) {
@@ -96,24 +141,20 @@ const SmartSongRenderer = ({ content, fontSize = 16, transpose = 0 }) => {
     };
 
     const handleMouseEnter = (e, chordName) => {
-        // Only use hover on non-touch devices and if not already locked on another chord
         if (window.matchMedia('(hover: hover)').matches && !isLocked) {
             handleChordInteraction(e, chordName, false);
         }
     };
 
     const handleMouseLeave = () => {
-        // Only close on hover if not locked
         if (window.matchMedia('(hover: hover)').matches && !isLocked) {
-            // Add delay before closing to allow moving into tooltip
             hoverTimeoutRef.current = setTimeout(() => {
                 setSelectedChord(null);
-            }, 300); // 300ms delay
+            }, 300);
         }
     };
 
     const handleTooltipEnter = () => {
-        // If entering tooltip, cancel the close timer
         if (hoverTimeoutRef.current) {
             clearTimeout(hoverTimeoutRef.current);
             hoverTimeoutRef.current = null;
@@ -121,7 +162,6 @@ const SmartSongRenderer = ({ content, fontSize = 16, transpose = 0 }) => {
     };
 
     const handleTooltipLeave = () => {
-        // Resume close timer when leaving tooltip, unless locked
         if (!isLocked) {
             hoverTimeoutRef.current = setTimeout(() => {
                 setSelectedChord(null);
@@ -135,10 +175,43 @@ const SmartSongRenderer = ({ content, fontSize = 16, transpose = 0 }) => {
         setIsLocked(false);
     };
 
-    if (!content) return <div className="text-muted">Aucun contenu à afficher</div>;
+    // Helper to get style based on placement
+    const getTooltipStyle = () => {
+        const { x, y, placement } = tooltipState;
+
+        if (placement === 'mobile-bottom') {
+            return {
+                left: '50%',
+                bottom: '20px',
+                top: 'auto',
+                transform: 'translateX(-50%)',
+                maxWidth: '90vw'
+            };
+        }
+
+        if (placement === 'right') {
+            return {
+                left: x,
+                top: y,
+                transform: 'translateY(-50%)' // Vertically center
+            };
+        }
+
+        if (placement === 'left') {
+            return {
+                left: x,
+                top: y,
+                transform: 'translate(-100%, -50%)' // Shift left and vertically center
+            };
+        }
+
+        return {};
+    };
 
     return (
         <div className="song-container" style={{ fontSize: `${fontSize}px` }}>
+            {/* ... banner code ... */}
+
             {/* Chord Tooltip/Modal */}
             {selectedChord && (
                 <>
@@ -153,11 +226,7 @@ const SmartSongRenderer = ({ content, fontSize = 16, transpose = 0 }) => {
 
                     <div
                         className="chord-tooltip"
-                        style={{
-                            left: tooltipPos.x,
-                            top: tooltipPos.y,
-                            transform: 'translate(-50%, -100%) translateY(-10px)'
-                        }}
+                        style={getTooltipStyle()}
                         onMouseEnter={handleTooltipEnter}
                         onMouseLeave={handleTooltipLeave}
                     >
@@ -179,7 +248,6 @@ const SmartSongRenderer = ({ content, fontSize = 16, transpose = 0 }) => {
                 </>
             )}
 
-            {/* Song Lines - P0 Fix: New rendering approach */}
             {lines.map((line, i) => {
                 if (line.type === 'directive') return null;
 
@@ -187,19 +255,23 @@ const SmartSongRenderer = ({ content, fontSize = 16, transpose = 0 }) => {
                 const groups = [];
                 let currentGroup = { chord: null, text: '' };
 
-                line.tokens.forEach(token => {
-                    if (token.type === 'chord') {
-                        // If we have a pending group, push it
-                        if (currentGroup.text || currentGroup.chord) {
+                // Defensive check for tokens
+                if (line.tokens) {
+                    line.tokens.forEach(token => {
+                        if (token.type === 'chord') {
+                            // If we have a pending group, push it
+                            if (currentGroup.text || currentGroup.chord) {
+                                groups.push(currentGroup);
+                            }
+                            currentGroup = { chord: token.content, text: '' };
+                        } else {
+                            currentGroup.text = token.content;
                             groups.push(currentGroup);
+                            currentGroup = { chord: null, text: '' };
                         }
-                        currentGroup = { chord: token.content, text: '' };
-                    } else {
-                        currentGroup.text = token.content;
-                        groups.push(currentGroup);
-                        currentGroup = { chord: null, text: '' };
-                    }
-                });
+                    });
+                }
+
                 // Push any remaining group
                 if (currentGroup.text || currentGroup.chord) groups.push(currentGroup);
 
@@ -230,6 +302,49 @@ const SmartSongRenderer = ({ content, fontSize = 16, transpose = 0 }) => {
                     </div>
                 );
             })}
+
+            <style>{`
+                .smart-capo-banner {
+                    display: flex;
+                    align-items: center;
+                    gap: 1rem;
+                    padding: 0.75rem 1rem;
+                    margin-bottom: 1.5rem;
+                    border-radius: 12px;
+                    border-left: 4px solid #facc15;
+                    animation: slideDown 0.5s ease-out;
+                }
+                
+                @keyframes slideDown {
+                    from { transform: translateY(-20px); opacity: 0; }
+                    to { transform: translateY(0); opacity: 1; }
+                }
+                
+                .capo-icon {
+                    flex-shrink: 0;
+                }
+                
+                .capo-content {
+                    flex: 1;
+                    font-size: 0.9rem;
+                }
+                
+                .capo-content strong {
+                    color: #facc15;
+                    display: block;
+                    margin-bottom: 2px;
+                }
+                
+                .capo-content p {
+                    margin: 0;
+                    color: rgba(255,255,255,0.8);
+                }
+                
+                .capo-close {
+                    flex-shrink: 0;
+                    padding: 0.25rem;
+                }
+            `}</style>
         </div>
     );
 };

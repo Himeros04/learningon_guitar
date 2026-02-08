@@ -1,33 +1,43 @@
+import { useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
-import { Book, Edit, Settings as SettingsIcon, Music, LogOut, User } from 'lucide-react';
+import { Book, Edit, Settings as SettingsIcon, Music, LogOut, User, Trophy, Flame } from 'lucide-react';
 import Library from './components/Library';
 import SongEditor from './components/SongEditor';
 import ChordLibrary from './components/ChordLibrary';
 import Settings from './components/Settings';
+import AdminDashboard from './components/admin/AdminDashboard';
 import LoginPage from './components/auth/LoginPage';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ToastProvider } from './components/Toast';
+import { GamificationProvider, useGamification } from './contexts/GamificationContext';
+import { getLevelProgress } from './services/GamificationService';
+import DailyLoot from './components/gamification/DailyLoot';
+import ErrorBoundary from './components/ErrorBoundary';
 
 function App() {
   return (
-    <ToastProvider>
-      <AuthProvider>
-        <Router>
-          <Routes>
-            {/* Public route */}
-            <Route path="/login" element={<LoginPage />} />
+    <ErrorBoundary>
+      <ToastProvider>
+        <AuthProvider>
+          <GamificationProvider>
+            <Router>
+              <Routes>
+                {/* Public route */}
+                <Route path="/login" element={<LoginPage />} />
 
-            {/* Protected routes */}
-            <Route path="/*" element={
-              <ProtectedRoute>
-                <MainLayout />
-              </ProtectedRoute>
-            } />
-          </Routes>
-        </Router>
-      </AuthProvider>
-    </ToastProvider>
+                {/* Protected routes */}
+                <Route path="/*" element={
+                  <ProtectedRoute>
+                    <MainLayout />
+                  </ProtectedRoute>
+                } />
+              </Routes>
+            </Router>
+          </GamificationProvider>
+        </AuthProvider>
+      </ToastProvider>
+    </ErrorBoundary>
   );
 }
 
@@ -35,6 +45,7 @@ function MainLayout() {
   return (
     <div className="layout-main">
       <Sidebar />
+      <DailyLoot />
       <main className="content-area">
         <Routes>
           <Route path="/" element={<Navigate to="/library" replace />} />
@@ -43,6 +54,7 @@ function MainLayout() {
           <Route path="/editor/:id" element={<SongEditor />} />
           <Route path="/chords" element={<ChordLibrary />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/admin" element={<AdminDashboard />} />
         </Routes>
       </main>
       <MobileNav />
@@ -53,6 +65,7 @@ function MainLayout() {
 function Sidebar() {
   const location = useLocation();
   const { user, logout } = useAuth();
+  const { gamification } = useGamification();
 
   const navItems = [
     { label: 'Bibliothèque', path: '/library', icon: <Book size={18} /> },
@@ -64,6 +77,9 @@ function Sidebar() {
   const handleLogout = async () => {
     await logout();
   };
+
+  // Calculate Level Progress
+  const levelProgress = getLevelProgress(gamification?.xp || 0, gamification?.level || 1);
 
   return (
     <aside className="sidebar">
@@ -95,6 +111,28 @@ function Sidebar() {
           );
         })}
       </nav>
+
+      {/* Gamification Stats */}
+      {gamification && (
+        <div className="sidebar-gamification">
+          <div className="level-info">
+            <div className="level-badge">
+              <Trophy size={14} color="#fbbf24" />
+              <span>Niveau {gamification.level || 1}</span>
+            </div>
+            <div className="streak-badge">
+              <Flame size={14} color="#f87171" />
+              <span>{gamification.currentStreak || 0} jours</span>
+            </div>
+          </div>
+          <div className="xp-bar-container">
+            <div className="xp-bar-fill" style={{ width: `${levelProgress}%` }}></div>
+          </div>
+          <div className="xp-text">
+            {gamification.xp || 0} XP / {levelProgress}%
+          </div>
+        </div>
+      )}
 
       {/* User section at bottom */}
       <div className="sidebar-user">
@@ -170,6 +208,51 @@ function Sidebar() {
           Déconnexion
         </button>
       </div>
+
+      <style>{`
+        .sidebar-gamification {
+            background: rgba(255,255,255,0.03);
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .level-info {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+            font-size: 0.85rem;
+            font-weight: bold;
+        }
+
+        .level-badge, .streak-badge {
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+
+        .xp-bar-container {
+            height: 6px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 3px;
+            overflow: hidden;
+            margin-bottom: 0.3rem;
+        }
+
+        .xp-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent-primary), #a5b4fc);
+            border-radius: 3px;
+            transition: width 0.5s ease-out;
+        }
+
+        .xp-text {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-align: right;
+        }
+      `}</style>
     </aside>
   );
 }

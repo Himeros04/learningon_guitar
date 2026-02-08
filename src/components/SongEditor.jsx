@@ -10,8 +10,19 @@ import { getSong, addSong, updateSong } from '../firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from './Toast';
 import { processAutoChords } from '../services/autoChords';
+import { useGamification } from '../contexts/GamificationContext';
+import MasteryBar from './gamification/MasteryBar';
+
+// Static imports for critical UI
+import EditorToolbar from './editor/EditorToolbar';
+import EditorMobileNav from './editor/EditorMobileNav';
+import EditorMetaPanel from './editor/EditorMetaPanel';
+
+// Lazy load tools
+const FocusTrainer = React.lazy(() => import('./tools/FocusTrainer'));
 
 const SongEditor = () => {
+
     const { id } = useParams();
     const navigate = useNavigate();
     const location = useLocation();
@@ -29,6 +40,7 @@ const SongEditor = () => {
     const [isFavorite, setIsFavorite] = useState(false);
     const [showDetails, setShowDetails] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
+    const [showFocusTrainer, setShowFocusTrainer] = useState(false);
 
     const { folders } = useFolders();
     const scrollContainerRef = useRef(null);
@@ -48,6 +60,9 @@ const SongEditor = () => {
         }
     }, [location.state, id, showToast]);
 
+    const [songMastery, setSongMastery] = useState(0);
+    const { addXp } = useGamification();
+
     // Load existing song if ID is present
     useEffect(() => {
         if (id) {
@@ -60,6 +75,7 @@ const SongEditor = () => {
                     setImageUrl(song.image || '');
                     setFolderId(song.folderId || '');
                     setIsFavorite(song.isFavorite || false);
+                    setSongMastery(song.mastery || 0);
                 }
                 setLoading(false);
             }).catch(err => {
@@ -68,6 +84,24 @@ const SongEditor = () => {
             });
         }
     }, [id]);
+
+    const handleSongComplete = async () => {
+        if (!id || !user) return;
+
+        // Increase mastery
+        const oldMastery = songMastery;
+        const newMastery = Math.min(100, oldMastery + 5);
+
+        if (newMastery > oldMastery) {
+            setSongMastery(newMastery);
+            await updateSong(id, { mastery: newMastery });
+
+            // Add XP for completing song
+            await addXp(20, 'Chanson terminée');
+
+            showToast(`Maîtrise augmentée ! ${newMastery}%`, 'success');
+        }
+    };
 
     const handleSave = async () => {
         if (!title) return alert('Le titre est requis');
@@ -112,162 +146,56 @@ const SongEditor = () => {
 
     return (
         <div className="editor-container">
-            {/* Mobile Header - P0 Fix: Uses own responsive styles, not show-mobile */}
-            <div className="editor-mobile-header">
-                <button className="btn-ghost" onClick={() => navigate('/library')} aria-label="Retour à la bibliothèque">
-                    <ChevronLeft size={24} />
-                </button>
-                <div className="editor-mobile-title">
-                    <input
-                        type="text"
-                        placeholder="Titre"
-                        value={title}
-                        onChange={e => setTitle(e.target.value)}
-                    />
+            <EditorMobileNav
+                title={title}
+                setTitle={setTitle}
+                artist={artist}
+                setArtist={setArtist}
+                showPreview={showPreview}
+                setShowPreview={setShowPreview}
+                showDetails={showDetails}
+                setShowDetails={setShowDetails}
+                transpose={transpose}
+                setTranspose={setTranspose}
+                setIsFullscreen={setIsFullscreen}
+                handleSave={handleSave}
+                navigate={navigate}
+                onFocusMode={() => setShowFocusTrainer(true)}
+            />
+
+            {/* Mastery Bar (Mobile/Desktop) */}
+            {id && (
+                <div style={{ padding: '0 1rem 1rem 1rem' }}>
+                    <MasteryBar mastery={songMastery} />
                 </div>
-                {!showPreview && (
-                    <button className="btn-ghost" onClick={() => { setShowPreview(true); setShowDetails(false); }} style={{ padding: '0.5rem' }} aria-label="Voir l'aperçu">
-                        <Eye size={20} />
-                    </button>
-                )}
-                <button className="btn-primary" onClick={handleSave} style={{ padding: '0.5rem' }} aria-label="Enregistrer">
-                    <Save size={20} />
-                </button>
-            </div>
+            )}
 
-            {/* Desktop Toolbar */}
-            <div className="editor-toolbar glass-panel hide-mobile">
-                <input
-                    type="text"
-                    placeholder="Titre de la chanson"
-                    value={title}
-                    onChange={e => setTitle(e.target.value)}
-                    className="editor-title-input"
-                    autoComplete="off"
-                />
-                <input
-                    type="text"
-                    placeholder="Artiste"
-                    value={artist}
-                    onChange={e => setArtist(e.target.value)}
-                    className="editor-artist-input"
-                    autoComplete="off"
-                />
+            <EditorToolbar
+                title={title}
+                setTitle={setTitle}
+                artist={artist}
+                setArtist={setArtist}
+                showPreview={showPreview}
+                setShowPreview={setShowPreview}
+                transpose={transpose}
+                setTranspose={setTranspose}
+                isFullscreen={isFullscreen}
+                setIsFullscreen={setIsFullscreen}
+                handleSave={handleSave}
+                loading={loading}
+                onFocusMode={() => setShowFocusTrainer(true)}
+            />
 
-                <button className="btn-ghost" onClick={() => setShowPreview(!showPreview)}>
-                    {showPreview ? 'Voir Code' : 'Voir Aperçu'}
-                </button>
-
-                {showPreview && (
-                    <div className="transpose-controls">
-                        <button className="btn-ghost" onClick={() => setTranspose(t => t - 1)}>-</button>
-                        <span className={transpose !== 0 ? 'active' : ''}>
-                            {transpose > 0 ? `+${transpose}` : transpose}
-                        </span>
-                        <button className="btn-ghost" onClick={() => setTranspose(t => t + 1)}>+</button>
-                    </div>
-                )}
-
-                {showPreview && (
-                    <button
-                        className="btn-ghost mode-scene-btn"
-                        onClick={() => setIsFullscreen(true)}
-                        aria-label="Mode Scène"
-                    >
-                        <Maximize2 size={18} /> Mode Scène
-                    </button>
-                )}
-
-                <button className="btn-primary save-btn" onClick={handleSave}>
-                    <Save size={18} /> Enregistrer
-                </button>
-            </div>
-
-            {/* Mobile Controls Bar - P0 Fix: Uses own responsive styles */}
-            <div className={`editor-mobile-controls ${!showPreview && !showDetails ? 'hidden' : ''}`}>
-                <button
-                    className={`mobile-control-btn ${showPreview && !showDetails ? 'active' : ''}`}
-                    onClick={() => { setShowPreview(true); setShowDetails(false); }}
-                >
-                    Aperçu
-                </button>
-                <button
-                    className={`mobile-control-btn ${!showPreview && !showDetails ? 'active' : ''}`}
-                    onClick={() => { setShowPreview(false); setShowDetails(false); }}
-                >
-                    Éditer
-                </button>
-                <button
-                    className={`mobile-control-btn ${showDetails ? 'active' : ''}`}
-                    onClick={() => { setShowDetails(true); }}
-                >
-                    Détails
-                </button>
-                {showPreview && (
-                    <div className="mobile-transpose">
-                        <button onClick={() => setTranspose(t => t - 1)}>-</button>
-                        <span>{transpose}</span>
-                        <button onClick={() => setTranspose(t => t + 1)}>+</button>
-                    </div>
-                )}
-                {showPreview && (
-                    <button
-                        className="mobile-control-btn mode-scene-mobile"
-                        onClick={() => setIsFullscreen(true)}
-                        aria-label="Mode Scène"
-                    >
-                        <Maximize2 size={16} />
-                    </button>
-                )}
-            </div>
-
-            {/* Details Panel (collapsible on mobile) */}
-            <div className={`editor-details ${showDetails ? 'show' : ''}`}>
-                {/* Image Upload */}
-                <div className="detail-section">
-                    <label>Image de couverture</label>
-                    <ImageUploader
-                        currentImage={imageUrl}
-                        onImageChange={setImageUrl}
-                        folder="covers"
-                        placeholder="Glissez une image ou cliquez"
-                    />
-                    <input
-                        type="text"
-                        placeholder="Ou collez une URL d'image..."
-                        value={imageUrl}
-                        onChange={e => setImageUrl(e.target.value)}
-                        className="url-input"
-                    />
-                </div>
-
-                {/* Mobile Artist Input */}
-                <div className="detail-section detail-section-mobile">
-                    <label>Artiste</label>
-                    <input
-                        type="text"
-                        placeholder="Nom de l'artiste"
-                        value={artist}
-                        onChange={e => setArtist(e.target.value)}
-                        className="url-input"
-                    />
-                </div>
-
-
-
-                <div className="detail-section">
-                    <select
-                        value={folderId}
-                        onChange={e => setFolderId(e.target.value)}
-                        className="folder-select"
-                    >
-                        <option value="">-- Aucun dossier --</option>
-                        {folders?.map(f => (
-                            <option key={f.id} value={f.id}>{f.name}</option>
-                        ))}
-                    </select>
-                </div>
-            </div>
+            <EditorMetaPanel
+                showDetails={showDetails}
+                imageUrl={imageUrl}
+                setImageUrl={setImageUrl}
+                artist={artist}
+                setArtist={setArtist}
+                folderId={folderId}
+                setFolderId={setFolderId}
+                folders={folders}
+            />
 
             {/* Main Content */}
             <div className={`editor-main ${showDetails ? 'hidden-mobile' : ''}`}>
@@ -299,7 +227,19 @@ const SongEditor = () => {
                 {showPreview && !isFullscreen && (
                     <AutoScroller
                         targetRef={scrollContainerRef}
+                        onComplete={handleSongComplete}
                     />
+                )}
+
+                {/* P3 Feature: Focus Trainer */}
+                {showFocusTrainer && (
+                    <React.Suspense fallback={<div className="glass-panel p-4">Chargement du Focus Mode...</div>}>
+                        <FocusTrainer
+                            content={content}
+                            title={title || 'Sans titre'}
+                            onClose={() => setShowFocusTrainer(false)}
+                        />
+                    </React.Suspense>
                 )}
             </div>
 
@@ -312,6 +252,7 @@ const SongEditor = () => {
                     transpose={transpose}
                     onTransposeChange={setTranspose}
                     onClose={() => setIsFullscreen(false)}
+                    onComplete={handleSongComplete}
                 />
             )}
 
@@ -568,8 +509,17 @@ const SongEditor = () => {
                     background: transparent;
                     border: none;
                     color: white;
+                }
+
+                .mobile-title-input {
                     font-size: 1.1rem;
                     font-weight: bold;
+                    margin-bottom: 2px;
+                }
+
+                .mobile-artist-input {
+                    font-size: 0.9rem;
+                    color: var(--text-muted) !important;
                 }
 
                 /* Mobile Controls */
