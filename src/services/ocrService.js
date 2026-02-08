@@ -63,7 +63,12 @@ export async function processOcrImage(imageData) {
 
     // Call Gemini Vision API with retry logic
     let lastError;
-    for (let attempt = 1; attempt <= 3; attempt++) {
+    const isFreeTier = true; // Assume free tier
+
+    // Increased delays for free tier: 2s, 5s, 10s
+    const retryDelays = [2000, 5000, 10000];
+
+    for (let attempt = 0; attempt <= 3; attempt++) {
         try {
             const response = await fetch(`${GEMINI_VISION_URL}?key=${GEMINI_API_KEY}`, {
                 method: 'POST',
@@ -89,6 +94,12 @@ export async function processOcrImage(imageData) {
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
+
+                // Handle Rate Limiting (429) specifically
+                if (response.status === 429) {
+                    throw new Error('Quota gratuit dépassé (Rate Limit). Veuillez patienter quelques instants.');
+                }
+
                 throw new Error(`API Error ${response.status}: ${errorData.error?.message || 'Unknown error'}`);
             }
 
@@ -115,11 +126,18 @@ export async function processOcrImage(imageData) {
             return songData;
         } catch (error) {
             lastError = error;
-            console.warn(`OCR attempt ${attempt} failed:`, error.message);
+            console.warn(`OCR attempt ${attempt + 1} failed:`, error.message);
 
-            if (attempt < 3) {
-                // Exponential backoff
-                await new Promise(r => setTimeout(r, Math.pow(2, attempt) * 1000));
+            // Don't retry if it's a parsing error or client error (4xx except 429)
+            // But DO retry 429 or 5xx or network errors
+            const isRetryable = error.message.includes('Quota') || error.message.includes('fetch') || error.message.includes('50');
+
+            if (attempt < 3 && isRetryable) {
+                const delay = retryDelays[attempt] || 5000;
+                console.log(`Waiting ${delay}ms before retry...`);
+                await new Promise(r => setTimeout(r, delay));
+            } else {
+                break; // Stop retrying
             }
         }
     }
