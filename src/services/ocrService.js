@@ -12,7 +12,14 @@
  */
 
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || '';
-const GEMINI_VISION_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
+const BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models/';
+
+// Priority list of models to try
+const MODELS = [
+    'gemini-1.5-flash',
+    'gemini-1.5-pro',
+    'gemini-2.0-flash-exp' // Fallback to experimental if stable fails
+];
 
 const SYSTEM_PROMPT = `Tu es un expert en transcription musicale OCR. Analyse cette image de partition/tablature et extrait les paroles et accords.
 
@@ -61,88 +68,95 @@ export async function processOcrImage(imageData) {
     // Determine MIME type
     const mimeType = imageData.includes('image/png') ? 'image/png' : 'image/jpeg';
 
-    // Call Gemini Vision API with retry logic
+    // Call Gemini Vision API with retry + model fallback logic
     let lastError;
-    const isFreeTier = true; // Assume free tier
-
     // Increased delays for free tier: 2s, 5s, 10s
     const retryDelays = [2000, 5000, 10000];
 
-    for (let attempt = 0; attempt <= 3; attempt++) {
-        try {
-            const response = await fetch(`${GEMINI_VISION_URL}?key=${GEMINI_API_KEY}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{
-                        parts: [
-                            { text: SYSTEM_PROMPT },
-                            {
-                                inline_data: {
-                                    mime_type: mimeType,
-                                    data: base64Data
+    // Try each model in sequence
+    for (const model of MODELS) {
+        console.log(`Attempting OCR with model: ${model}`);
+
+        for (let attempt = 0; attempt <= 2; attempt++) {
+            try {
+                const response = await fetch(`${BASE_URL}${model}:generateContent?key=${GEMINI_API_KEY}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{
+                            parts: [
+                                { text: SYSTEM_PROMPT },
+                                {
+                                    inline_data: {
+                                        mime_type: mimeType,
+                                        data: base64Data
+                                    }
                                 }
-                            }
-                        ]
-                    }],
-                    generationConfig: {
-                        temperature: 0,
-                        maxOutputTokens: 4096,
+                            ]
+                        }],
+                        generationConfig: {
+                            temperature: 0,
+                            maxOutputTokens: 4096,
+                        }
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+
+                    // Handle Rate Limiting (429) -> Wait and retry same model
+                    if (response.status === 429) {
+                        throw new Error(`QUOTA_EXCEEDED`); // Special marker to trigger delay
                     }
-                })
-            });
 
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
+                    // Handle 404 (Model not found) -> Break inner loop to try next model
+                    if (response.status === 404) {
+                        console.warn(`Model ${model} not found (404). Switching...`);
+                        throw new Error(`MODEL_NOT_FOUND`);
+                    }
 
-                // Handle Rate Limiting (429) specifically
-                if (response.status === 429) {
-                    throw new Error('Quota gratuit dépassé (Rate Limit). Veuillez patienter quelques instants.');
+                    throw new Error(`API Error ${response.status}: ${errorData.error?.message || 'Unknown error'}`);
                 }
 
-                throw new Error(`API Error ${response.status}: ${errorData.error?.message || 'Unknown error'}`);
-            }
+                const data = await response.json();
+                const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
-            const data = await response.json();
-            const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (!text) throw new Error('Réponse vide de l\'IA');
 
-            if (!text) {
-                throw new Error('Réponse vide de l\'IA');
-            }
+                // Extract JSON from response
+                const jsonMatch = text.match(/\{[\s\S]*\}/);
+                if (!jsonMatch) throw new Error('Format JSON invalide dans la réponse');
 
-            // Extract JSON from response
-            const jsonMatch = text.match(/\{[\s\S]*\}/);
-            if (!jsonMatch) {
-                throw new Error('Format JSON invalide dans la réponse');
-            }
+                const songData = JSON.parse(jsonMatch[0]);
 
-            const songData = JSON.parse(jsonMatch[0]);
+                if (!validateOcrResponse(songData)) throw new Error('Structure de données invalide');
 
-            // Validate response structure
-            if (!validateOcrResponse(songData)) {
-                throw new Error('Structure de données invalide');
-            }
+                return songData; // Success!
 
-            return songData;
-        } catch (error) {
-            lastError = error;
-            console.warn(`OCR attempt ${attempt + 1} failed:`, error.message);
+            } catch (error) {
+                lastError = error;
+                console.warn(`OCR attempt ${attempt + 1} with ${model} failed:`, error.message);
 
-            // Don't retry if it's a parsing error or client error (4xx except 429)
-            // But DO retry 429 or 5xx or network errors
-            const isRetryable = error.message.includes('Quota') || error.message.includes('fetch') || error.message.includes('50');
+                if (error.message === 'MODEL_NOT_FOUND') {
+                    break; // Move to next model immediately
+                }
 
-            if (attempt < 3 && isRetryable) {
-                const delay = retryDelays[attempt] || 5000;
-                console.log(`Waiting ${delay}ms before retry...`);
-                await new Promise(r => setTimeout(r, delay));
-            } else {
-                break; // Stop retrying
+                if (attempt < 2 && (error.message === 'QUOTA_EXCEEDED' || error.message.includes('fetch') || error.message.includes('50'))) {
+                    const delay = retryDelays[attempt] || 5000;
+                    console.log(`Waiting ${delay}ms before retry...`);
+                    await new Promise(r => setTimeout(r, delay));
+                } else {
+                    break; // Stop retrying this model, move to next
+                }
             }
         }
     }
 
-    throw lastError;
+    if (lastError && lastError.message === 'QUOTA_EXCEEDED') {
+        throw new Error('Quota gratuit dépassé sur tous les modèles. Veuillez patienter.');
+    }
+
+    throw lastError || new Error('Echec de l\'analyse OCR après plusieurs tentatives.');
 }
 
 /**
