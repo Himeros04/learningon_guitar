@@ -427,5 +427,126 @@ export default {
     getChords,
     addChord,
     updateChord,
-    deleteChord
+    deleteChord,
+    subscribeChords,
+    seedInitialChords
+};
+
+/**
+ * Subscribe to user's chords (real-time)
+ * @param {string} userId 
+ * @param {Function} callback 
+ * @param {Function} onError 
+ * @returns {Function} Unsubscribe function
+ */
+export const subscribeChords = (userId, callback, onError) => {
+    const q = query(
+        collection(db, COLLECTIONS.CHORDS),
+        where('userId', '==', userId)
+    );
+
+    return onSnapshot(q, (snapshot) => {
+        const chords = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        }));
+        callback(chords);
+    }, (error) => {
+        console.error('Firestore chords subscription error:', error);
+        if (onError) onError(error);
+        callback([]);
+    });
+};
+
+/**
+ * Seed initial chords for a new user
+ * @param {string} userId 
+ */
+export const seedInitialChords = async (userId) => {
+    const STARTER_CHORDS = [
+        {
+            name: 'C',
+            category: 'Majeur',
+            tags: ['basic', 'open'],
+            data: {
+                positions: [{ strings: { 6: -1, 5: 3, 4: 2, 3: 0, 2: 1, 1: 0 }, fingers: { 6: 0, 5: 3, 4: 2, 3: 0, 2: 1, 1: 0 }, baseFret: 1 }]
+            }
+        },
+        {
+            name: 'D',
+            category: 'Majeur',
+            tags: ['basic', 'open'],
+            data: {
+                positions: [{ strings: { 6: -1, 5: -1, 4: 0, 3: 2, 2: 3, 1: 2 }, fingers: { 6: 0, 5: 0, 4: 0, 3: 1, 2: 3, 1: 2 }, baseFret: 1 }]
+            }
+        },
+        {
+            name: 'E',
+            category: 'Majeur',
+            tags: ['basic', 'open'],
+            data: {
+                positions: [{ strings: { 6: 0, 5: 2, 4: 2, 3: 1, 2: 0, 1: 0 }, fingers: { 6: 0, 5: 2, 4: 3, 3: 1, 2: 0, 1: 0 }, baseFret: 1 }]
+            }
+        },
+        {
+            name: 'G',
+            category: 'Majeur',
+            tags: ['basic', 'open'],
+            data: {
+                positions: [{ strings: { 6: 3, 5: 2, 4: 0, 3: 0, 2: 0, 1: 3 }, fingers: { 6: 2, 5: 1, 4: 0, 3: 0, 2: 0, 1: 3 }, baseFret: 1 }]
+            }
+        },
+        {
+            name: 'A',
+            category: 'Majeur',
+            tags: ['basic', 'open'],
+            data: {
+                positions: [{ strings: { 6: -1, 5: 0, 4: 2, 3: 2, 2: 2, 1: 0 }, fingers: { 6: 0, 5: 0, 4: 1, 3: 2, 2: 3, 1: 0 }, baseFret: 1 }]
+            }
+        },
+        {
+            name: 'Am',
+            category: 'Mineur',
+            tags: ['basic', 'open'],
+            data: {
+                positions: [{ strings: { 6: -1, 5: 0, 4: 2, 3: 2, 2: 1, 1: 0 }, fingers: { 6: 0, 5: 0, 4: 2, 3: 3, 2: 1, 1: 0 }, baseFret: 1 }]
+            }
+        },
+        {
+            name: 'Em',
+            category: 'Mineur',
+            tags: ['basic', 'open'],
+            data: {
+                positions: [{ strings: { 6: 0, 5: 2, 4: 2, 3: 0, 2: 0, 1: 0 }, fingers: { 6: 0, 5: 2, 4: 3, 3: 0, 2: 0, 1: 0 }, baseFret: 1 }]
+            }
+        },
+        {
+            name: 'Dm',
+            category: 'Mineur',
+            tags: ['basic', 'open'],
+            data: {
+                positions: [{ strings: { 6: -1, 5: -1, 4: 0, 3: 2, 2: 3, 1: 1 }, fingers: { 6: 0, 5: 0, 4: 0, 3: 2, 2: 3, 1: 1 }, baseFret: 1 }]
+            }
+        },
+        {
+            name: 'F',
+            category: 'Majeur',
+            tags: ['basic', 'barre'],
+            data: {
+                positions: [{ strings: { 6: 1, 5: 3, 4: 3, 3: 2, 2: 1, 1: 1 }, fingers: { 6: 1, 5: 3, 4: 4, 3: 2, 2: 1, 1: 1 }, baseFret: 1 }]
+            }
+        },
+        {
+            name: 'E7',
+            category: '7ème',
+            tags: ['basic', 'open'],
+            data: {
+                positions: [{ strings: { 6: 0, 5: 2, 4: 0, 3: 1, 2: 0, 1: 0 }, fingers: { 6: 0, 5: 2, 4: 0, 3: 1, 2: 0, 1: 0 }, baseFret: 1 }]
+            }
+        }
+    ];
+
+    for (const chord of STARTER_CHORDS) {
+        await addChord(userId, chord);
+    }
 };

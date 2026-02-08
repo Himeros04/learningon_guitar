@@ -1,11 +1,18 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Play, Pause } from 'lucide-react';
+import { Play, Pause, Plus, Minus } from 'lucide-react';
 
-const AutoScroller = ({ durationSeconds, targetRef, onScrollingStateChange }) => {
+const AutoScroller = ({ targetRef, onScrollingStateChange }) => {
     const [isPlaying, setIsPlaying] = useState(false);
+    const [speed, setSpeed] = useState(2); // Speed level 1-5, default 2
     const [progress, setProgress] = useState(0);
     const animationFrameRef = useRef(null);
     const isPlayingRef = useRef(false);
+    const speedRef = useRef(speed);
+
+    // Keep speedRef in sync
+    useEffect(() => {
+        speedRef.current = speed;
+    }, [speed]);
 
     // Monitor scroll progress
     useEffect(() => {
@@ -21,7 +28,6 @@ const AutoScroller = ({ durationSeconds, targetRef, onScrollingStateChange }) =>
         };
 
         element.addEventListener('scroll', handleScroll);
-        // Initial check
         handleScroll();
 
         return () => element.removeEventListener('scroll', handleScroll);
@@ -49,7 +55,7 @@ const AutoScroller = ({ durationSeconds, targetRef, onScrollingStateChange }) =>
         const totalScrollable = element.scrollHeight - element.clientHeight;
         if (totalScrollable <= 0) return;
 
-        // Only reset to top if we are already at the very bottom
+        // Reset to top if at the bottom
         if (Math.abs(element.scrollTop - totalScrollable) < 5) {
             element.scrollTop = 0;
         }
@@ -66,16 +72,15 @@ const AutoScroller = ({ durationSeconds, targetRef, onScrollingStateChange }) =>
             const el = targetRef.current;
             const currentTotal = el.scrollHeight - el.clientHeight;
 
-            // Calculate speed dynamically (pixels per second)
-            // Use currentTotal to handle content resizing
-            const speed = currentTotal / (durationSeconds || 180);
+            // Speed: pixels per second = speedLevel * 25
+            const pixelsPerSecond = speedRef.current * 25;
 
             const delta = (time - lastTime) / 1000;
             lastTime = time;
 
             // Prevent huge jumps if tab was inactive
             if (delta < 0.1) {
-                el.scrollTop += speed * delta;
+                el.scrollTop += pixelsPerSecond * delta;
             }
 
             // Check if reached bottom
@@ -87,7 +92,7 @@ const AutoScroller = ({ durationSeconds, targetRef, onScrollingStateChange }) =>
         };
 
         animationFrameRef.current = requestAnimationFrame(tick);
-    }, [durationSeconds, stopScroll, onScrollingStateChange, targetRef]);
+    }, [stopScroll, onScrollingStateChange, targetRef]);
 
     const toggleScroll = useCallback(() => {
         if (isPlayingRef.current) {
@@ -97,72 +102,64 @@ const AutoScroller = ({ durationSeconds, targetRef, onScrollingStateChange }) =>
         }
     }, [startScroll, stopScroll]);
 
+    const increaseSpeed = () => setSpeed(s => Math.min(s + 1, 5));
+    const decreaseSpeed = () => setSpeed(s => Math.max(s - 1, 1));
+
     return (
         <>
             <div className="auto-scroller glass-panel">
-                <div className="auto-scroller-info">
-                    <span className="auto-scroller-label">AUTO-SCROLL</span>
-                    <div className="auto-scroller-track">
-                        <div className="auto-scroller-progress" style={{ width: `${progress}%` }} />
-                    </div>
-                </div>
+                {/* Speed Down */}
+                <button
+                    onClick={decreaseSpeed}
+                    className="auto-scroller-speed-btn"
+                    aria-label="Réduire la vitesse"
+                    disabled={speed <= 1}
+                >
+                    <Minus size={18} />
+                </button>
 
+                {/* Play/Pause */}
                 <button
                     onClick={toggleScroll}
                     className="btn-primary auto-scroller-btn"
-                    aria-label={isPlaying ? 'Pause du défilement' : 'Lecture automatique'}
+                    aria-label={isPlaying ? 'Pause' : 'Lecture'}
                 >
                     {isPlaying ? <Pause fill="white" size={20} /> : <Play fill="white" size={20} style={{ marginLeft: '2px' }} />}
                 </button>
+
+                {/* Speed Up */}
+                <button
+                    onClick={increaseSpeed}
+                    className="auto-scroller-speed-btn"
+                    aria-label="Augmenter la vitesse"
+                    disabled={speed >= 5}
+                >
+                    <Plus size={18} />
+                </button>
+
+                {/* Speed indicator (desktop only) */}
+                <span className="auto-scroller-speed-label">x{speed}</span>
             </div>
 
             <style>{`
                 .auto-scroller {
                     position: fixed;
-                    /* P0 Fix: Use safe-area-inset and CSS variable for mobile nav */
                     bottom: calc(env(safe-area-inset-bottom, 0px) + 2rem);
                     right: 2rem;
-                    /* P0 Fix: Use z-index variable */
                     z-index: var(--z-autoscroller, 60);
                     display: flex;
                     align-items: center;
-                    gap: 1rem;
-                    padding: 0.75rem 1.25rem;
+                    gap: 0.5rem;
+                    padding: 0.5rem 0.75rem;
                     border-radius: 50px;
                     border: 1px solid var(--accent-primary);
                     box-shadow: 0 8px 32px rgba(0,0,0,0.3);
                 }
 
-                .auto-scroller-info {
-                    display: flex;
-                    flex-direction: column;
-                    min-width: 100px;
-                }
-
-                .auto-scroller-label {
-                    font-size: 0.75rem;
-                    font-weight: bold;
-                    color: var(--text-muted);
-                    margin-bottom: 2px;
-                }
-
-                .auto-scroller-track {
-                    width: 100%;
-                    height: 4px;
-                    background: rgba(255,255,255,0.1);
-                    border-radius: 2px;
-                    overflow: hidden;
-                }
-
-                .auto-scroller-progress {
-                    height: 100%;
-                    background: var(--accent-primary);
-                }
-
                 .auto-scroller-btn {
                     border-radius: 50%;
-                    width: 40px;
-                    height: 40px;
+                    width: 44px;
+                    height: 44px;
                     padding: 0;
                     display: flex;
                     align-items: center;
@@ -170,28 +167,62 @@ const AutoScroller = ({ durationSeconds, targetRef, onScrollingStateChange }) =>
                     flex-shrink: 0;
                 }
 
-                /* Mobile: raise above bottom nav with safe area support */
+                .auto-scroller-speed-btn {
+                    width: 36px;
+                    height: 36px;
+                    border-radius: 50%;
+                    background: rgba(255,255,255,0.1);
+                    border: 1px solid rgba(255,255,255,0.2);
+                    color: white;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                }
+
+                .auto-scroller-speed-btn:hover:not(:disabled) {
+                    background: rgba(255,255,255,0.2);
+                }
+
+                .auto-scroller-speed-btn:disabled {
+                    opacity: 0.3;
+                    cursor: not-allowed;
+                }
+
+                .auto-scroller-speed-label {
+                    font-size: 0.85rem;
+                    font-weight: bold;
+                    color: var(--accent-primary);
+                    min-width: 2rem;
+                    text-align: center;
+                }
+
+                /* Mobile */
                 @media (max-width: 768px) {
                     .auto-scroller {
-                        /* P0 Fix: Proper positioning above mobile nav with safe area */
                         bottom: calc(
                             env(safe-area-inset-bottom, 0px) + 
                             var(--mobile-nav-height, 70px) + 
                             1rem
                         );
                         right: 1rem;
-                        padding: 0.5rem;
-                        gap: 0;
-                        border-radius: 50%;
-                    }
-
-                    .auto-scroller-info {
-                        display: none;
+                        padding: 0.4rem;
+                        gap: 0.4rem;
                     }
 
                     .auto-scroller-btn {
-                        width: 48px;
-                        height: 48px;
+                        width: 40px;
+                        height: 40px;
+                    }
+
+                    .auto-scroller-speed-btn {
+                        width: 32px;
+                        height: 32px;
+                    }
+
+                    .auto-scroller-speed-label {
+                        display: none;
                     }
                 }
             `}</style>

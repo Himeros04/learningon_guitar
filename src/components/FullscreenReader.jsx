@@ -98,7 +98,6 @@ const FullscreenReader = ({
 
             {/* AutoScroller positioned for fullscreen */}
             <AutoScroller
-                durationSeconds={duration}
                 targetRef={containerRef}
             />
 

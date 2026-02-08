@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, RotateCcw, Search } from 'lucide-react';
-import { db } from '../db/db';
+import { X, Save } from 'lucide-react';
+import { addChord, updateChord, getChords } from '../firebase/firestore';
+import { useAuth } from '../contexts/AuthContext';
 
 /**
  * ChordEditorModal - Redesigned
@@ -10,6 +11,7 @@ import { db } from '../db/db';
  * - Right: Main Chord Grid (5 frets window)
  */
 const ChordEditorModal = ({ onClose, onSuccess, initialName = '', lockedName = false }) => {
+    const { user } = useAuth();
     const [name, setName] = useState(initialName);
     const [category, setCategory] = useState('Standard');
     const [tags, setTags] = useState('');
@@ -62,20 +64,23 @@ const ChordEditorModal = ({ onClose, onSuccess, initialName = '', lockedName = f
 
     const handleSave = async () => {
         if (!name) return alert('Nom requis');
+        if (!user) return alert('Vous devez être connecté');
 
         const tagsArray = tags.split(',').map(t => t.trim()).filter(t => t);
         const fingering = { strings, fingers, baseFret };
 
-        const existingChord = await db.chords.where('name').equals(name).first();
+        // Fetch existing chords to check for duplicates
+        const existingChords = await getChords(user.uid);
+        const existingChord = existingChords.find(c => c.name === name);
 
         if (existingChord) {
             let newPositions = existingChord.data.positions
                 ? [...existingChord.data.positions, fingering]
                 : [existingChord.data, fingering];
 
-            await db.chords.update(existingChord.id, { 'data.positions': newPositions });
+            await updateChord(existingChord.id, { data: { positions: newPositions } });
         } else {
-            await db.chords.add({
+            await addChord(user.uid, {
                 name,
                 category,
                 tags: tagsArray,

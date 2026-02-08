@@ -15,23 +15,23 @@
 import { extractChords, normalizeChordName } from '../utils/chordExtractor';
 import { lookupChord } from '../db/commonChords';
 import { generateChordWithAI, isGeminiConfigured } from './chordGenerator';
-import { db } from '../db/db';
+import { getChords, addChord } from '../firebase/firestore';
 
 /**
  * Process auto-chords for a song
  * @param {string} content - The song content in ChordPro format
  * @returns {Promise<string[]>} - Array of newly added chord names
  */
-export async function processAutoChords(content) {
-    if (!content) return [];
+export async function processAutoChords(content, userId) {
+    if (!content || !userId) return [];
 
     try {
         // Step 1: Extract all chord names from content
         const chordNames = extractChords(content);
         if (chordNames.length === 0) return [];
 
-        // Step 2: Get existing chords from user's library
-        const existingChords = await db.chords.toArray();
+        // Step 2: Get existing chords from user's Firebase library
+        const existingChords = await getChords(userId);
         const existingNames = new Set(
             existingChords.map(c => normalizeChordName(c.name))
         );
@@ -55,10 +55,10 @@ export async function processAutoChords(content) {
                 chordData = await generateChordWithAI(chordName);
             }
 
-            // If we have chord data, add to database
+            // If we have chord data, add to Firebase
             if (chordData) {
                 try {
-                    await db.chords.add({
+                    await addChord(userId, {
                         name: chordData.name || chordName,
                         category: 'Auto-Import',
                         tags: ['auto'],

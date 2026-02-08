@@ -1,22 +1,28 @@
-import React, { useState } from 'react';
-import { useLiveQuery } from 'dexie-react-hooks';
-import { X, Check, Star, Plus } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Check, Star, Plus, Trash2 } from 'lucide-react';
 import ChordDiagram from './ChordDiagram';
-import { db } from '../db/db';
+import ConfirmModal from './ConfirmModal';
+import { updateChord, deleteChord as deleteChordFirebase, subscribeChords } from '../firebase/firestore';
+import { useAuth } from '../contexts/AuthContext';
 
 const ChordDetailModal = ({ chord: initialChord, onClose, onAddVariation }) => {
+    const { user } = useAuth();
     // Determine ID safely
     const chordId = initialChord?.id;
 
-    // Live query to listen for changes (e.g. Set Default reorder)
-    // Only run if we have an ID
-    const liveChord = useLiveQuery(() => {
-        if (!chordId) return null;
-        return db.chords.get(chordId);
-    }, [chordId]);
+    // Live subscription to listen for changes (e.g. Set Default reorder)
+    const [displayChord, setDisplayChord] = useState(initialChord);
 
-    // Fallback to initialChord if liveChord is loading or not found (though it should be found)
-    const displayChord = liveChord || initialChord;
+    useEffect(() => {
+        if (!user || !chordId) return;
+
+        const unsubscribe = subscribeChords(user.uid, (chords) => {
+            const found = chords.find(c => c.id === chordId);
+            if (found) setDisplayChord(found);
+        });
+
+        return () => unsubscribe();
+    }, [user, chordId]);
 
     // Guard clause: if data is missing, don't render content to avoid crash
     if (!displayChord || !displayChord.data) return null;
@@ -48,12 +54,60 @@ const ChordDetailModal = ({ chord: initialChord, onClose, onAddVariation }) => {
         const selectedVar = newPositions.splice(index, 1)[0];
         newPositions.unshift(selectedVar);
 
-        await db.chords.update(displayChord.id, {
-            'data': { positions: newPositions }
+        await updateChord(displayChord.id, {
+            data: { positions: newPositions }
         });
 
         // Reset view to default (0)
         setSelectedIdx(0);
+    };
+
+    // --- Deletion Logic ---
+    const [deleteModal, setDeleteModal] = useState({
+        isOpen: false,
+        type: null, // 'chord' or 'variation'
+        index: null
+    });
+
+    const handleDeleteClick = (type, index = null) => {
+        // If deleting the ONLY variation, switch to full chord delete context
+        if (type === 'variation' && variations.length <= 1) {
+            setDeleteModal({
+                isOpen: true,
+                type: 'chord',
+                index: null
+            });
+            return;
+        }
+
+        setDeleteModal({
+            isOpen: true,
+            type,
+            index
+        });
+    };
+
+    const confirmDelete = async () => {
+        if (!displayChord.id) return;
+
+        if (deleteModal.type === 'chord') {
+            await deleteChordFirebase(displayChord.id);
+            onClose(); // Close modal immediately
+        } else if (deleteModal.type === 'variation' && deleteModal.index !== null) {
+            const newPositions = [...variations];
+            newPositions.splice(deleteModal.index, 1);
+
+            await updateChord(displayChord.id, {
+                data: { positions: newPositions }
+            });
+
+            // Adjust selected index if needed
+            if (selectedIdx >= newPositions.length) {
+                setSelectedIdx(Math.max(0, newPositions.length - 1));
+            }
+        }
+
+        setDeleteModal({ isOpen: false, type: null, index: null });
     };
 
     return (
@@ -67,7 +121,17 @@ const ChordDetailModal = ({ chord: initialChord, onClose, onAddVariation }) => {
                         </h2>
                         <p className="text-muted" style={{ fontSize: '0.9rem' }}>Choisissez la variation par défaut</p>
                     </div>
-                    <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'white', cursor: 'pointer' }}><X /></button>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button
+                            onClick={() => handleDeleteClick('chord')}
+                            style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem', borderRadius: '6px' }}
+                            title="Supprimer cet accord"
+                            className="btn-ghost-danger"
+                        >
+                            <Trash2 size={20} />
+                        </button>
+                        <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'white', cursor: 'pointer' }}><X /></button>
+                    </div>
                 </div>
 
                 {/* Content */}
@@ -119,13 +183,31 @@ const ChordDetailModal = ({ chord: initialChord, onClose, onAddVariation }) => {
                                             <Check size={14} /> Par défaut
                                         </div>
                                     ) : (
-                                        <button
-                                            className="btn-ghost"
-                                            onClick={(e) => { e.stopPropagation(); handleSetDefault(idx); }}
-                                            style={{ fontSize: '0.8rem', padding: '0.25rem' }}
-                                        >
-                                            Définir par défaut
-                                        </button>
+                                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                            <button
+                                                className="btn-ghost"
+                                                onClick={(e) => { e.stopPropagation(); handleSetDefault(idx); }}
+                                                style={{ fontSize: '0.8rem', padding: '0.25rem', flex: 1 }}
+                                            >
+                                                Définir par défaut
+                                            </button>
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); handleDeleteClick('variation', idx); }}
+                                                style={{
+                                                    background: 'transparent',
+                                                    border: 'none',
+                                                    color: '#ef4444',
+                                                    cursor: 'pointer',
+                                                    padding: '0.25rem',
+                                                    opacity: 0.7
+                                                }}
+                                                title="Supprimer cette variation"
+                                                onMouseEnter={e => e.currentTarget.style.opacity = 1}
+                                                onMouseLeave={e => e.currentTarget.style.opacity = 0.7}
+                                            >
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </div>
                                     )}
                                 </div>
                             </div>
@@ -152,7 +234,19 @@ const ChordDetailModal = ({ chord: initialChord, onClose, onAddVariation }) => {
 
                 </div>
             </div>
-        </div>
+
+            <ConfirmModal
+                isOpen={deleteModal.isOpen}
+                onClose={() => setDeleteModal({ ...deleteModal, isOpen: false })}
+                onConfirm={confirmDelete}
+                title={deleteModal.type === 'chord' ? "Supprimer l'accord" : "Supprimer la variation"}
+                message={deleteModal.type === 'chord'
+                    ? `Êtes-vous sûr de vouloir supprimer définitivement l'accord "${displayChord.name}" et toutes ses variations ?`
+                    : "Êtes-vous sûr de vouloir supprimer cette variation ?"}
+                confirmText="Supprimer"
+                variant="danger"
+            />
+        </div >
     );
 };
 

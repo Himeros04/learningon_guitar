@@ -28,6 +28,10 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
+console.log("Firebase Config Loaded:", {
+    apiKey: firebaseConfig.apiKey ? `...${firebaseConfig.apiKey.slice(-5)}` : "MISSING",
+    projectId: firebaseConfig.projectId
+});
 const app = initializeApp(firebaseConfig);
 
 // Initialize services

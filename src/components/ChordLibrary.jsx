@@ -1,18 +1,20 @@
-import React, { useState } from 'react';
-import { useLiveQuery } from 'dexie-react-hooks';
-import { db } from '../db/db';
+import React, { useState, useEffect } from 'react';
 import { Search, Plus, Filter, ChevronDown } from 'lucide-react';
 import ChordDiagram from './ChordDiagram';
 import ChordEditorModal from './ChordEditorModal';
 import ChordDetailModal from './ChordDetailModal';
+import { subscribeChords, seedInitialChords } from '../firebase/firestore';
+import { useAuth } from '../contexts/AuthContext';
 
 const ChordLibrary = () => {
+    const { user } = useAuth();
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('All');
     const [showModal, setShowModal] = useState(false);
     const [editorConfig, setEditorConfig] = useState({ initialName: '', lockedName: false });
     const [selectedChord, setSelectedChord] = useState(null);
     const [showFilters, setShowFilters] = useState(false);
+    const [allChords, setAllChords] = useState(null);
 
     const handleOpenNewChord = () => {
         setEditorConfig({ initialName: '', lockedName: false });
@@ -25,12 +27,30 @@ const ChordLibrary = () => {
         setSelectedChord(null);
     };
 
-    const allChords = useLiveQuery(() => db.chords.toArray());
-    const categories = useLiveQuery(async () => {
-        const chords = await db.chords.toArray();
-        const cats = new Set(chords.map(c => c.category || 'Uncategorized'));
-        return ['All', ...Array.from(cats)];
-    });
+    // Subscribe to Firebase chords
+    useEffect(() => {
+        if (!user) {
+            setAllChords([]);
+            return;
+        }
+
+        const unsubscribe = subscribeChords(user.uid, async (chords) => {
+            // Seed initial chords if library is empty
+            if (chords.length === 0) {
+                await seedInitialChords(user.uid);
+                // The subscription will fire again with the new chords
+            } else {
+                setAllChords(chords);
+            }
+        });
+
+        return () => unsubscribe();
+    }, [user]);
+
+    // Compute categories from allChords
+    const categories = allChords
+        ? ['All', ...new Set(allChords.map(c => c.category || 'Uncategorized'))]
+        : ['All'];
 
     if (!allChords) return <div className="p-8 text-muted">Chargement...</div>;
 

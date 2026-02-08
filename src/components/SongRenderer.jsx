@@ -1,12 +1,28 @@
-import React, { useMemo, useState, useRef } from 'react';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { parseChordPro } from '../utils/chordProParser';
 import { transposeChord } from '../utils/transposer';
 import { getChordData } from '../db/chords';
 import ChordDiagram from './ChordDiagram';
 import { X } from 'lucide-react';
+import { subscribeChords } from '../firebase/firestore';
+import { useAuth } from '../contexts/AuthContext';
 
 const SmartSongRenderer = ({ content, fontSize = 16, transpose = 0 }) => {
+    const { user } = useAuth();
     const lines = useMemo(() => parseChordPro(content), [content]);
+
+    // Fetch custom chords from Firebase
+    const [customChords, setCustomChords] = useState([]);
+
+    useEffect(() => {
+        if (!user) {
+            setCustomChords([]);
+            return;
+        }
+        const unsubscribe = subscribeChords(user.uid, setCustomChords);
+        return () => unsubscribe();
+    }, [user]);
+
     const [selectedChord, setSelectedChord] = useState(null);
     const [isLocked, setIsLocked] = useState(false); // Track if tooltip was opened via click
     const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
@@ -22,7 +38,28 @@ const SmartSongRenderer = ({ content, fontSize = 16, transpose = 0 }) => {
 
         const cleanName = chordName.trim();
         const actualChord = transposeChord(cleanName, transpose);
-        const data = getChordData(actualChord);
+
+        // 1. Try to find in custom DB first
+        let data = null;
+        if (customChords) {
+            const customMatch = customChords.find(c => c.name === actualChord);
+            if (customMatch && customMatch.data) {
+                // Normalize custom data structure for diagram
+                // DB stores { positions: [...] } or { strings: ... }
+                // Diagram expects { positions: [...] } preferred
+                if (customMatch.data.positions) {
+                    data = customMatch.data;
+                } else {
+                    // Legacy wrapper
+                    data = { positions: [customMatch.data] };
+                }
+            }
+        }
+
+        // 2. Fallback to static DB
+        if (!data) {
+            data = getChordData(actualChord);
+        }
 
         if (data) {
             const rect = e.currentTarget.getBoundingClientRect();

@@ -94,7 +94,7 @@ const SongEditor = () => {
             }
 
             // Auto-add new chords to library (background task)
-            const addedChords = await processAutoChords(content);
+            const addedChords = await processAutoChords(content, user.uid);
             if (addedChords.length > 0) {
                 showToast(
                     `${addedChords.length} nouveaux accords ajoutés : ${addedChords.slice(0, 3).join(', ')}${addedChords.length > 3 ? '...' : ''}`,
@@ -305,7 +305,6 @@ const SongEditor = () => {
                 {/* Auto Scroller */}
                 {showPreview && !isFullscreen && (
                     <AutoScroller
-                        durationSeconds={parseInt(duration) || 180}
                         targetRef={scrollContainerRef}
                     />
                 )}
@@ -674,6 +673,21 @@ const SongEditor = () => {
                     /* P0 Fix: Mobile-only sections */
                     .detail-section-mobile {
                         display: block;
+                    }
+
+                    /* Fullscreen editor on mobile */
+                    .editor-textarea:not(.hidden) {
+                        position: fixed;
+                        inset: 0;
+                        z-index: 90;
+                        border-radius: 0;
+                        padding-top: 60px;
+                        background: var(--bg-primary, #0f0f14);
+                    }
+
+                    .editor-textarea:not(.hidden) textarea {
+                        height: 100%;
+                        font-size: 14px;
                     }
                 }
 
