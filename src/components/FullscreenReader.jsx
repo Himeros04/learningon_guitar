@@ -85,11 +85,13 @@ const FullscreenReader = ({
 
             {/* Scrollable content area */}
             <div className="fullscreen-content" ref={containerRef}>
-                <SmartSongRenderer
-                    content={content}
-                    fontSize={24}
-                    transpose={transpose}
-                />
+                <div className="fullscreen-content-inner">
+                    <SmartSongRenderer
+                        content={content}
+                        fontSize={24}
+                        transpose={transpose}
+                    />
+                </div>
                 {/* Extra padding at bottom for scroll */}
                 <div style={{ height: '50vh' }} />
             </div>
@@ -203,13 +205,21 @@ const FullscreenReader = ({
                     overflow-y: auto;
                     padding: 2rem;
                     color: #fff;
-                    scroll-behavior: smooth;
+                    /* REMOVED scroll-behavior: smooth - it breaks AutoScroller */
+                }
+
+                /* Center the lyrics content */
+                .fullscreen-content-inner {
+                    max-width: 800px;
+                    margin: 0 auto;
+                    text-align: center;
                 }
 
                 /* Override chord colors for better contrast in fullscreen */
                 .fullscreen-content .chord-group .chord {
                     color: #fbbf24; /* Yellow for high visibility */
                     font-size: 1em;
+                    top: -1.8em; /* More space between chord and lyrics */
                 }
 
                 .fullscreen-content .chord-group .lyrics {
@@ -217,8 +227,9 @@ const FullscreenReader = ({
                 }
 
                 .fullscreen-content .song-line {
-                    line-height: 2.8;
-                    margin-bottom: 2em;
+                    line-height: 3.2; /* Increased for more chord spacing */
+                    margin-bottom: 2.5em;
+                    text-align: left; /* Keep lyrics left-aligned within centered container */
                 }
 
                 /* Mobile adjustments */
