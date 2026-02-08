@@ -14,11 +14,14 @@
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || '';
 const BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models/';
 
-// Priority list of models to try
+// Priority list:
+// 1. gemini-2.0-flash: Used initially (works but rate limited)
+// 2. gemini-1.5-flash: Standard fast model
+// 3. gemini-pro-vision: Stable legacy fallback
 const MODELS = [
+    'gemini-2.0-flash',
     'gemini-1.5-flash',
-    'gemini-1.5-pro',
-    'gemini-2.0-flash-exp' // Fallback to experimental if stable fails
+    'gemini-pro-vision'
 ];
 
 const SYSTEM_PROMPT = `Tu es un expert en transcription musicale OCR. Analyse cette image de partition/tablature et extrait les paroles et accords.
@@ -70,14 +73,13 @@ export async function processOcrImage(imageData) {
 
     // Call Gemini Vision API with retry + model fallback logic
     let lastError;
-    // Increased delays for free tier: 2s, 5s, 10s
-    const retryDelays = [2000, 5000, 10000];
+    const retryDelays = [2000, 5000]; // Reduced retry count per model to speed up fallback
 
     // Try each model in sequence
     for (const model of MODELS) {
         console.log(`Attempting OCR with model: ${model}`);
 
-        for (let attempt = 0; attempt <= 2; attempt++) {
+        for (let attempt = 0; attempt <= 1; attempt++) {
             try {
                 const response = await fetch(`${BASE_URL}${model}:generateContent?key=${GEMINI_API_KEY}`, {
                     method: 'POST',
@@ -141,7 +143,7 @@ export async function processOcrImage(imageData) {
                     break; // Move to next model immediately
                 }
 
-                if (attempt < 2 && (error.message === 'QUOTA_EXCEEDED' || error.message.includes('fetch') || error.message.includes('50'))) {
+                if (attempt < 1 && (error.message === 'QUOTA_EXCEEDED' || error.message.includes('fetch') || error.message.includes('50'))) {
                     const delay = retryDelays[attempt] || 5000;
                     console.log(`Waiting ${delay}ms before retry...`);
                     await new Promise(r => setTimeout(r, delay));
