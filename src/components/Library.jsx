@@ -1,17 +1,22 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Plus, Music, Calendar, Star, Trash2 } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Plus, Music, Calendar, Star, Trash2, Camera } from 'lucide-react';
 import FolderList from './FolderList';
 import ConfirmModal from './ConfirmModal';
+import OcrImportModal from './OcrImportModal';
 import { useSongsByFolder } from '../hooks/useFirestore';
 import { updateSong, deleteSong } from '../firebase/firestore';
 
 const Library = () => {
+    const navigate = useNavigate();
     const [selectedFolderId, setSelectedFolderId] = useState(null);
     const { songs, loading } = useSongsByFolder(selectedFolderId);
 
     // Delete confirmation modal state
     const [deleteModal, setDeleteModal] = useState({ isOpen: false, songId: null, songTitle: '' });
+
+    // OCR import modal state
+    const [showOcrModal, setShowOcrModal] = useState(false);
 
     // Toggle favorite status
     const toggleFavorite = async (e, songId, currentStatus) => {
@@ -34,6 +39,19 @@ const Library = () => {
         }
     };
 
+    // Handle OCR success - navigate to editor with pre-filled data
+    const handleOcrSuccess = (ocrData) => {
+        navigate('/editor', {
+            state: {
+                ocrData: {
+                    title: ocrData.title,
+                    artist: ocrData.artist,
+                    content: ocrData.content
+                }
+            }
+        });
+    };
+
     // Helper to format date (handles Firestore Timestamp)
     const formatDate = (date) => {
         if (!date) return '';
@@ -50,9 +68,19 @@ const Library = () => {
                 <div>
                     <h1 className="library-title">Bibliothèque</h1>
                 </div>
-                <Link to="/editor" className="btn-primary library-add-btn">
-                    <Plus size={20} /> <span className="hide-mobile">Nouvelle Partition</span>
-                </Link>
+                <div style={{ display: 'flex', gap: '0.75rem' }}>
+                    <button
+                        onClick={() => setShowOcrModal(true)}
+                        className="btn-ghost library-ocr-btn"
+                        title="Importer via photo"
+                    >
+                        <Camera size={20} />
+                        <span className="hide-mobile">Photo</span>
+                    </button>
+                    <Link to="/editor" className="btn-primary library-add-btn">
+                        <Plus size={20} /> <span className="hide-mobile">Nouvelle Partition</span>
+                    </Link>
+                </div>
             </header>
 
             {/* Mobile Folder List - Horizontal scrollable */}
@@ -145,6 +173,14 @@ const Library = () => {
                 variant="danger"
             />
 
+            {/* OCR Import Modal */}
+            {showOcrModal && (
+                <OcrImportModal
+                    onClose={() => setShowOcrModal(false)}
+                    onSuccess={handleOcrSuccess}
+                />
+            )}
+
             <style>{`
                 .library-container {
                     padding: 2rem;
@@ -171,6 +207,12 @@ const Library = () => {
                     align-items: center;
                     gap: 0.5rem;
                     text-decoration: none;
+                }
+
+                .library-ocr-btn {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
                 }
 
                 .library-content {

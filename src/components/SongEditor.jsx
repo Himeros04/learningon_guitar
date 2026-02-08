@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import SmartSongRenderer from './SongRenderer';
 import { Save, ChevronLeft, Maximize2 } from 'lucide-react';
 import AutoScroller from './AutoScroller';
@@ -14,6 +14,7 @@ import { processAutoChords } from '../services/autoChords';
 const SongEditor = () => {
     const { id } = useParams();
     const navigate = useNavigate();
+    const location = useLocation();
     const { user } = useAuth();
     const { showToast } = useToast();
 
@@ -32,6 +33,21 @@ const SongEditor = () => {
 
     const { folders } = useFolders();
     const scrollContainerRef = useRef(null);
+
+    // Load OCR data if available (and not editing existing song)
+    useEffect(() => {
+        if (!id && location.state?.ocrData) {
+            const { title, artist, content } = location.state.ocrData;
+            if (title && title !== 'Inconnu') setTitle(title);
+            if (artist && artist !== 'Inconnu') setArtist(artist);
+            if (content) setContent(content);
+
+            // Clear state to prevent re-fill on refresh
+            window.history.replaceState({}, document.title);
+
+            showToast('Chanson importée avec succès !', 'success');
+        }
+    }, [location.state, id, showToast]);
 
     // Load existing song if ID is present
     useEffect(() => {
