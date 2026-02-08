@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import SmartSongRenderer from './SongRenderer';
-import { Save, ChevronLeft, Maximize2 } from 'lucide-react';
+import { Save, ChevronLeft, Maximize2, Eye } from 'lucide-react';
 import AutoScroller from './AutoScroller';
 import FullscreenReader from './FullscreenReader';
 import ImageUploader from './ImageUploader';
@@ -125,6 +125,11 @@ const SongEditor = () => {
                         onChange={e => setTitle(e.target.value)}
                     />
                 </div>
+                {!showPreview && (
+                    <button className="btn-ghost" onClick={() => { setShowPreview(true); setShowDetails(false); }} style={{ padding: '0.5rem' }} aria-label="Voir l'aperçu">
+                        <Eye size={20} />
+                    </button>
+                )}
                 <button className="btn-primary" onClick={handleSave} style={{ padding: '0.5rem' }} aria-label="Enregistrer">
                     <Save size={20} />
                 </button>
@@ -179,22 +184,22 @@ const SongEditor = () => {
             </div>
 
             {/* Mobile Controls Bar - P0 Fix: Uses own responsive styles */}
-            <div className="editor-mobile-controls">
+            <div className={`editor-mobile-controls ${!showPreview && !showDetails ? 'hidden' : ''}`}>
                 <button
-                    className={`mobile-control-btn ${showPreview ? 'active' : ''}`}
-                    onClick={() => setShowPreview(true)}
+                    className={`mobile-control-btn ${showPreview && !showDetails ? 'active' : ''}`}
+                    onClick={() => { setShowPreview(true); setShowDetails(false); }}
                 >
                     Aperçu
                 </button>
                 <button
-                    className={`mobile-control-btn ${!showPreview ? 'active' : ''}`}
-                    onClick={() => setShowPreview(false)}
+                    className={`mobile-control-btn ${!showPreview && !showDetails ? 'active' : ''}`}
+                    onClick={() => { setShowPreview(false); setShowDetails(false); }}
                 >
                     Éditer
                 </button>
                 <button
                     className={`mobile-control-btn ${showDetails ? 'active' : ''}`}
-                    onClick={() => setShowDetails(!showDetails)}
+                    onClick={() => { setShowDetails(true); }}
                 >
                     Détails
                 </button>
@@ -265,7 +270,7 @@ const SongEditor = () => {
             </div>
 
             {/* Main Content */}
-            <div className="editor-main">
+            <div className={`editor-main ${showDetails ? 'hidden-mobile' : ''}`}>
                 {/* Editor Area */}
                 <div className={`editor-textarea glass-panel ${showPreview ? 'hidden' : ''}`}>
                     <textarea
@@ -306,7 +311,6 @@ const SongEditor = () => {
                     artist={artist || 'Artiste inconnu'}
                     transpose={transpose}
                     onTransposeChange={setTranspose}
-                    duration={parseInt(duration) || 180}
                     onClose={() => setIsFullscreen(false)}
                 />
             )}
@@ -579,6 +583,10 @@ const SongEditor = () => {
                     background: var(--bg-primary, #0f0f14);
                 }
 
+                .editor-mobile-controls.hidden {
+                    display: none !important;
+                }
+
                 .mobile-control-btn {
                     flex: 1;
                     padding: 0.5rem;
@@ -625,6 +633,10 @@ const SongEditor = () => {
                 @media (max-width: 768px) {
                     .editor-container {
                         padding: 0.5rem;
+                    }
+
+                    .editor-toolbar {
+                        display: none;
                     }
 
                     .editor-mobile-header {
@@ -675,7 +687,7 @@ const SongEditor = () => {
                         inset: 0;
                         z-index: 90;
                         border-radius: 0;
-                        padding-top: 120px;
+                        padding-top: 60px; /* Reduced since controls are hidden */
                         background: var(--bg-primary, #0f0f14);
                     }
 
@@ -688,6 +700,12 @@ const SongEditor = () => {
                 /* Hide mobile-only sections on desktop */
                 .detail-section-mobile {
                     display: none;
+                }
+
+                @media (max-width: 768px) {
+                    .hidden-mobile {
+                        display: none !important;
+                    }
                 }
             `}</style>
         </div>
