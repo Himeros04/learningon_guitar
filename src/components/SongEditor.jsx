@@ -8,11 +8,14 @@ import ImageUploader from './ImageUploader';
 import { useFolders } from '../hooks/useFirestore';
 import { getSong, addSong, updateSong } from '../firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
+import { useToast } from './Toast';
+import { processAutoChords } from '../services/autoChords';
 
 const SongEditor = () => {
     const { id } = useParams();
     const navigate = useNavigate();
     const { user } = useAuth();
+    const { showToast } = useToast();
 
     const [title, setTitle] = useState('');
     const [artist, setArtist] = useState('');
@@ -73,6 +76,16 @@ const SongEditor = () => {
             } else {
                 await addSong(user.uid, songData);
             }
+
+            // Auto-add new chords to library (background task)
+            const addedChords = await processAutoChords(content);
+            if (addedChords.length > 0) {
+                showToast(
+                    `${addedChords.length} nouveaux accords ajoutés : ${addedChords.slice(0, 3).join(', ')}${addedChords.length > 3 ? '...' : ''}`,
+                    'success'
+                );
+            }
+
             navigate('/library');
         } catch (err) {
             console.error('Error saving song:', err);
