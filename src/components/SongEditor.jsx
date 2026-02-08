@@ -84,9 +84,9 @@ const SongEditor = () => {
 
     return (
         <div className="editor-container">
-            {/* Mobile Header */}
-            <div className="editor-mobile-header show-mobile">
-                <button className="btn-ghost" onClick={() => navigate('/library')}>
+            {/* Mobile Header - P0 Fix: Uses own responsive styles, not show-mobile */}
+            <div className="editor-mobile-header">
+                <button className="btn-ghost" onClick={() => navigate('/library')} aria-label="Retour à la bibliothèque">
                     <ChevronLeft size={24} />
                 </button>
                 <div className="editor-mobile-title">
@@ -97,7 +97,7 @@ const SongEditor = () => {
                         onChange={e => setTitle(e.target.value)}
                     />
                 </div>
-                <button className="btn-primary" onClick={handleSave} style={{ padding: '0.5rem' }}>
+                <button className="btn-primary" onClick={handleSave} style={{ padding: '0.5rem' }} aria-label="Enregistrer">
                     <Save size={20} />
                 </button>
             </div>
@@ -138,8 +138,8 @@ const SongEditor = () => {
                 </button>
             </div>
 
-            {/* Mobile Controls Bar */}
-            <div className="editor-mobile-controls show-mobile">
+            {/* Mobile Controls Bar - P0 Fix: Uses own responsive styles */}
+            <div className="editor-mobile-controls">
                 <button
                     className={`mobile-control-btn ${showPreview ? 'active' : ''}`}
                     onClick={() => setShowPreview(true)}
@@ -188,7 +188,7 @@ const SongEditor = () => {
                 </div>
 
                 {/* Mobile Artist Input */}
-                <div className="detail-section show-mobile">
+                <div className="detail-section detail-section-mobile">
                     <label>Artiste</label>
                     <input
                         type="text"
@@ -566,6 +566,16 @@ const SongEditor = () => {
                     .preview-content {
                         padding: 0 1rem 50vh 1rem;
                     }
+
+                    /* P0 Fix: Mobile-only sections */
+                    .detail-section-mobile {
+                        display: block;
+                    }
+                }
+
+                /* Hide mobile-only sections on desktop */
+                .detail-section-mobile {
+                    display: none;
                 }
             `}</style>
         </div>

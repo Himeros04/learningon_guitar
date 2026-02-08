@@ -4,12 +4,13 @@
   --bg-secondary: #121216;
   --bg-panel: rgba(30, 30, 35, 0.6);
   --bg-glass: rgba(255, 255, 255, 0.03);
-  
-  --accent-primary: #6366f1; /* Indigo 500 */
+
+  --accent-primary: #6366f1;
+  /* Indigo 500 */
   --accent-glow: rgba(99, 102, 241, 0.4);
   --text-main: #f8fafc;
   --text-muted: #94a3b8;
-  
+
   --border-subtle: rgba(255, 255, 255, 0.08);
   --border-glass: rgba(255, 255, 255, 0.1);
 
@@ -22,7 +23,7 @@
 
   /* Typography */
   --font-family: 'Inter', system-ui, sans-serif;
-  
+
   /* Effects */
   --glass-blur: blur(12px);
   --shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.15);
@@ -31,12 +32,33 @@
 
   /* Mobile */
   --mobile-nav-height: 70px;
+
+  /* Z-Index Scale (P0 Fix) */
+  --z-content: 1;
+  --z-navbar: 50;
+  --z-autoscroller: 60;
+  --z-tooltip: 90;
+  --z-modal: 100;
 }
 
 * {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+}
+
+/* iOS Input Normalization (P0 Fix) */
+input,
+textarea,
+select {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+}
+
+html {
+  height: -webkit-fill-available;
+  height: 100dvh;
 }
 
 body {
@@ -46,11 +68,17 @@ body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   min-height: 100vh;
+  min-height: 100dvh;
   min-height: -webkit-fill-available;
+  overflow: hidden;
+  /* P0 Fix: Prevent double scrollbar */
 }
 
-html {
-  height: -webkit-fill-available;
+#root {
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  /* P0 Fix: Only content areas should scroll */
 }
 
 a {
@@ -94,7 +122,7 @@ a {
 }
 
 .btn-ghost:hover {
-  background: rgba(255,255,255,0.05);
+  background: rgba(255, 255, 255, 0.05);
   color: var(--text-main);
 }
 
@@ -129,7 +157,7 @@ a {
 .sidebar-user {
   margin-top: auto;
   padding-top: 1rem;
-  border-top: 1px solid rgba(255,255,255,0.1);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .content-area {
@@ -151,7 +179,8 @@ a {
   border-top: 1px solid var(--border-subtle);
   padding: 0.5rem;
   padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
-  z-index: 1000;
+  /* P0 Fix: Use z-index variable */
+  z-index: var(--z-navbar);
 }
 
 .mobile-nav-items {
@@ -210,7 +239,7 @@ a {
   }
 
   /* Adjust content padding on mobile */
-  .content-area > div {
+  .content-area>div {
     padding: 1rem !important;
   }
 
@@ -226,8 +255,9 @@ a {
     font-size: 0.65rem;
     min-width: 50px;
   }
-  
-  .btn-primary, .btn-ghost {
+
+  .btn-primary,
+  .btn-ghost {
     padding: 0.4rem 0.75rem;
     font-size: 0.9rem;
   }
@@ -258,4 +288,115 @@ a {
   .show-mobile {
     display: block;
   }
+}
+
+/* =============================================
+   SONG RENDERER - P0 Fix: Lyrics Rendering
+   ============================================= */
+
+/* Container for the entire song */
+.song-container {
+  font-family: var(--font-family);
+  position: relative;
+}
+
+/* Each line of the song */
+.song-line {
+  margin-bottom: 1.8em;
+  line-height: 2.4;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+/* Chord + Text pair - stays together, wraps only on spaces */
+.chord-group {
+  display: inline;
+  position: relative;
+  white-space: nowrap;
+}
+
+/* The chord annotation above the text */
+.chord-group .chord {
+  position: absolute;
+  top: -1.3em;
+  left: 0;
+  color: var(--accent-primary);
+  font-weight: bold;
+  font-size: 0.85em;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: rgba(99, 102, 241, 0.3);
+  text-underline-offset: 2px;
+  transition: color 0.2s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.chord-group .chord:hover {
+  color: #818cf8;
+}
+
+/* The lyrics text */
+.chord-group .lyrics {
+  color: var(--text-main);
+  white-space: pre-wrap;
+}
+
+/* Empty chord placeholder (no chord above this text) */
+.chord-group .chord-empty {
+  visibility: hidden;
+}
+
+/* Chord tooltip backdrop */
+.chord-tooltip-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: var(--z-tooltip);
+  background: rgba(0, 0, 0, 0.3);
+}
+
+/* Chord tooltip popup */
+.chord-tooltip {
+  position: fixed;
+  z-index: calc(var(--z-tooltip) + 1);
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.5));
+}
+
+.chord-tooltip-content {
+  padding: 0.8rem;
+  border-radius: 12px;
+  background: rgba(25, 25, 30, 0.98);
+  border: 1px solid var(--border-subtle);
+  min-width: 120px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.chord-tooltip-name {
+  text-align: center;
+  font-weight: bold;
+  margin-bottom: 0.5rem;
+  font-size: 1.2rem;
+  color: var(--accent-primary);
+}
+
+.chord-tooltip-close {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chord-tooltip-close:hover {
+  color: var(--text-main);
 }

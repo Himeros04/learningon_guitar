@@ -97,7 +97,11 @@ const AutoScroller = ({ durationSeconds, targetRef, onScrollingStateChange }) =>
                     </div>
                 </div>
 
-                <button onClick={toggleScroll} className="btn-primary auto-scroller-btn">
+                <button
+                    onClick={toggleScroll}
+                    className="btn-primary auto-scroller-btn"
+                    aria-label={isPlaying ? 'Pause du défilement' : 'Lecture automatique'}
+                >
                     {isPlaying ? <Pause fill="white" size={20} /> : <Play fill="white" size={20} style={{ marginLeft: '2px' }} />}
                 </button>
             </div>
@@ -105,9 +109,11 @@ const AutoScroller = ({ durationSeconds, targetRef, onScrollingStateChange }) =>
             <style>{`
                 .auto-scroller {
                     position: fixed;
-                    bottom: 2rem;
+                    /* P0 Fix: Use safe-area-inset and CSS variable for mobile nav */
+                    bottom: calc(env(safe-area-inset-bottom, 0px) + 2rem);
                     right: 2rem;
-                    z-index: 1000;
+                    /* P0 Fix: Use z-index variable */
+                    z-index: var(--z-autoscroller, 60);
                     display: flex;
                     align-items: center;
                     gap: 1rem;
@@ -154,10 +160,15 @@ const AutoScroller = ({ durationSeconds, targetRef, onScrollingStateChange }) =>
                     flex-shrink: 0;
                 }
 
-                /* Mobile: raise above bottom nav, show only play button */
+                /* Mobile: raise above bottom nav with safe area support */
                 @media (max-width: 768px) {
                     .auto-scroller {
-                        bottom: calc(var(--mobile-nav-height, 70px) + 1rem);
+                        /* P0 Fix: Proper positioning above mobile nav with safe area */
+                        bottom: calc(
+                            env(safe-area-inset-bottom, 0px) + 
+                            var(--mobile-nav-height, 70px) + 
+                            1rem
+                        );
                         right: 1rem;
                         padding: 0.5rem;
                         gap: 0;
@@ -169,8 +180,8 @@ const AutoScroller = ({ durationSeconds, targetRef, onScrollingStateChange }) =>
                     }
 
                     .auto-scroller-btn {
-                        width: 44px;
-                        height: 44px;
+                        width: 48px;
+                        height: 48px;
                     }
                 }
             `}</style>

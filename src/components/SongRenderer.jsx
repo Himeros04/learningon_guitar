@@ -65,73 +65,34 @@ const SmartSongRenderer = ({ content, fontSize = 16, transpose = 0 }) => {
     if (!content) return <div className="text-muted">Aucun contenu à afficher</div>;
 
     return (
-        <div style={{ fontSize: `${fontSize}px`, fontFamily: 'Inter, sans-serif', position: 'relative' }}>
+        <div className="song-container" style={{ fontSize: `${fontSize}px` }}>
             {/* Chord Tooltip/Modal */}
             {selectedChord && (
                 <>
                     {/* Backdrop for mobile - click to close */}
                     <div
+                        className="chord-tooltip-backdrop"
                         onClick={closeTooltip}
-                        style={{
-                            position: 'fixed',
-                            top: 0,
-                            left: 0,
-                            right: 0,
-                            bottom: 0,
-                            zIndex: 9998,
-                            background: 'rgba(0,0,0,0.3)'
-                        }}
+                        aria-hidden="true"
                     />
                     <div
+                        className="chord-tooltip"
                         style={{
-                            position: 'fixed',
                             left: tooltipPos.x,
                             top: tooltipPos.y,
-                            transform: 'translate(-50%, -100%) translateY(-10px)',
-                            zIndex: 9999,
-                            filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.5))'
+                            transform: 'translate(-50%, -100%) translateY(-10px)'
                         }}
                     >
-                        <div
-                            className="glass-panel"
-                            style={{
-                                padding: '0.8rem',
-                                borderRadius: '12px',
-                                background: 'rgba(25, 25, 30, 0.98)',
-                                border: '1px solid var(--border-subtle)',
-                                minWidth: '120px',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                alignItems: 'center',
-                                position: 'relative'
-                            }}
-                        >
+                        <div className="chord-tooltip-content glass-panel" style={{ position: 'relative' }}>
                             {/* Close button for mobile */}
                             <button
+                                className="chord-tooltip-close"
                                 onClick={closeTooltip}
-                                style={{
-                                    position: 'absolute',
-                                    top: '4px',
-                                    right: '4px',
-                                    background: 'transparent',
-                                    border: 'none',
-                                    color: 'var(--text-muted)',
-                                    cursor: 'pointer',
-                                    padding: '4px',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center'
-                                }}
+                                aria-label="Fermer"
                             >
                                 <X size={14} />
                             </button>
-                            <div style={{
-                                textAlign: 'center',
-                                fontWeight: 'bold',
-                                marginBottom: '0.5rem',
-                                fontSize: '1.2rem',
-                                color: 'var(--accent-primary)'
-                            }}>
+                            <div className="chord-tooltip-name">
                                 {selectedChord.name}
                             </div>
                             <ChordDiagram chordData={selectedChord.data} width={100} height={120} />
@@ -140,14 +101,17 @@ const SmartSongRenderer = ({ content, fontSize = 16, transpose = 0 }) => {
                 </>
             )}
 
+            {/* Song Lines - P0 Fix: New rendering approach */}
             {lines.map((line, i) => {
                 if (line.type === 'directive') return null;
 
+                // Build chord/text groups from tokens
                 const groups = [];
                 let currentGroup = { chord: null, text: '' };
 
                 line.tokens.forEach(token => {
                     if (token.type === 'chord') {
+                        // If we have a pending group, push it
                         if (currentGroup.text || currentGroup.chord) {
                             groups.push(currentGroup);
                         }
@@ -158,41 +122,38 @@ const SmartSongRenderer = ({ content, fontSize = 16, transpose = 0 }) => {
                         currentGroup = { chord: null, text: '' };
                     }
                 });
+                // Push any remaining group
                 if (currentGroup.text || currentGroup.chord) groups.push(currentGroup);
 
                 return (
-                    <div key={i} style={{ display: 'flex', flexWrap: 'wrap', marginBottom: '1.5em', alignItems: 'flex-end', lineHeight: '1.2' }}>
-                        {groups.map((group, j) => (
-                            <div key={j} style={{ display: 'flex', flexDirection: 'column', marginRight: group.text ? '0' : '0.5ch' }}>
-                                <span
-                                    onClick={(e) => group.chord && handleChordClick(e, group.chord)}
-                                    onMouseEnter={(e) => group.chord && handleMouseEnter(e, group.chord)}
-                                    onMouseLeave={handleMouseLeave}
-                                    style={{
-                                        color: 'var(--accent-primary)',
-                                        fontWeight: 'bold',
-                                        fontSize: '0.9em',
-                                        height: '1.2em',
-                                        marginBottom: '0.2em',
-                                        minWidth: '1em',
-                                        cursor: group.chord ? 'pointer' : 'default',
-                                        transition: 'color 0.2s',
-                                        textDecoration: group.chord ? 'underline' : 'none',
-                                        textDecorationColor: 'rgba(99, 102, 241, 0.3)',
-                                        textUnderlineOffset: '2px',
-                                        WebkitTapHighlightColor: 'transparent'
-                                    }}
-                                >
-                                    {group.chord ? transposeChord(group.chord, transpose) : '\u00A0'}
+                    <div key={i} className="song-line">
+                        {groups.map((group, j) => {
+                            const transposedChord = group.chord ? transposeChord(group.chord, transpose) : null;
+
+                            return (
+                                <span key={j} className="chord-group">
+                                    {/* Chord annotation */}
+                                    <span
+                                        className={`chord ${!group.chord ? 'chord-empty' : ''}`}
+                                        onClick={(e) => group.chord && handleChordClick(e, group.chord)}
+                                        onMouseEnter={(e) => group.chord && handleMouseEnter(e, group.chord)}
+                                        onMouseLeave={handleMouseLeave}
+                                        role={group.chord ? 'button' : undefined}
+                                        tabIndex={group.chord ? 0 : undefined}
+                                        aria-label={group.chord ? `Accord ${transposedChord}` : undefined}
+                                    >
+                                        {transposedChord || '\u00A0'}
+                                    </span>
+                                    {/* Lyrics text */}
+                                    <span className="lyrics">{group.text || ''}</span>
                                 </span>
-                                <span style={{ whiteSpace: 'pre', color: 'var(--text-main)' }}>{group.text || ''}</span>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
-                )
+                );
             })}
         </div>
-    )
-}
+    );
+};
 
 export default SmartSongRenderer;
