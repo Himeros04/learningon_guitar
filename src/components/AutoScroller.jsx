@@ -1,12 +1,13 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Play, Pause } from 'lucide-react';
 
 const AutoScroller = ({ durationSeconds, targetRef, onScrollingStateChange }) => {
     const [isPlaying, setIsPlaying] = useState(false);
     const [progress, setProgress] = useState(0);
     const animationFrameRef = useRef(null);
-    const isPlayingRef = useRef(false); // Use ref for animation loop check
+    const isPlayingRef = useRef(false);
 
+    // Monitor scroll progress
     useEffect(() => {
         const element = targetRef.current;
         if (!element) return;
@@ -20,59 +21,18 @@ const AutoScroller = ({ durationSeconds, targetRef, onScrollingStateChange }) =>
         };
 
         element.addEventListener('scroll', handleScroll);
+        // Initial check
         handleScroll();
 
         return () => element.removeEventListener('scroll', handleScroll);
     }, [targetRef]);
 
+    // Cleanup on unmount
     useEffect(() => {
         return () => stopScroll();
     }, []);
 
-    const startScroll = () => {
-        if (!targetRef.current) return;
-
-        const element = targetRef.current;
-        const totalHeight = element.scrollHeight - element.clientHeight;
-
-        if (totalHeight <= 0) return;
-
-        // If at bottom, reset to top
-        if (element.scrollTop >= totalHeight - 5) {
-            element.scrollTop = 0;
-        }
-
-        // Set playing state
-        isPlayingRef.current = true;
-        setIsPlaying(true);
-        if (onScrollingStateChange) onScrollingStateChange(true);
-
-        const pixelsPerSecond = totalHeight / durationSeconds;
-        let lastTime = performance.now();
-
-        const scrollStep = (time) => {
-            // Use ref instead of state for immediate check
-            if (!isPlayingRef.current) return;
-
-            const deltaTime = (time - lastTime) / 1000;
-            lastTime = time;
-
-            // Re-get totalHeight in case content changed
-            const currentTotalHeight = element.scrollHeight - element.clientHeight;
-
-            if (element.scrollTop >= currentTotalHeight - 1) {
-                stopScroll();
-                return;
-            }
-
-            element.scrollTop += pixelsPerSecond * deltaTime;
-            animationFrameRef.current = requestAnimationFrame(scrollStep);
-        };
-
-        animationFrameRef.current = requestAnimationFrame(scrollStep);
-    };
-
-    const stopScroll = () => {
+    const stopScroll = useCallback(() => {
         isPlayingRef.current = false;
         if (animationFrameRef.current) {
             cancelAnimationFrame(animationFrameRef.current);
@@ -80,12 +40,62 @@ const AutoScroller = ({ durationSeconds, targetRef, onScrollingStateChange }) =>
         }
         setIsPlaying(false);
         if (onScrollingStateChange) onScrollingStateChange(false);
-    };
+    }, [onScrollingStateChange]);
 
-    const toggleScroll = () => {
-        if (isPlaying) stopScroll();
-        else startScroll();
-    };
+    const startScroll = useCallback(() => {
+        const element = targetRef.current;
+        if (!element) return;
+
+        const totalScrollable = element.scrollHeight - element.clientHeight;
+        if (totalScrollable <= 0) return;
+
+        // Only reset to top if we are already at the very bottom
+        if (Math.abs(element.scrollTop - totalScrollable) < 5) {
+            element.scrollTop = 0;
+        }
+
+        isPlayingRef.current = true;
+        setIsPlaying(true);
+        if (onScrollingStateChange) onScrollingStateChange(true);
+
+        let lastTime = performance.now();
+
+        const tick = (time) => {
+            if (!isPlayingRef.current || !targetRef.current) return;
+
+            const el = targetRef.current;
+            const currentTotal = el.scrollHeight - el.clientHeight;
+
+            // Calculate speed dynamically (pixels per second)
+            // Use currentTotal to handle content resizing
+            const speed = currentTotal / (durationSeconds || 180);
+
+            const delta = (time - lastTime) / 1000;
+            lastTime = time;
+
+            // Prevent huge jumps if tab was inactive
+            if (delta < 0.1) {
+                el.scrollTop += speed * delta;
+            }
+
+            // Check if reached bottom
+            if (el.scrollTop >= currentTotal - 1) {
+                stopScroll();
+            } else {
+                animationFrameRef.current = requestAnimationFrame(tick);
+            }
+        };
+
+        animationFrameRef.current = requestAnimationFrame(tick);
+    }, [durationSeconds, stopScroll, onScrollingStateChange, targetRef]);
+
+    const toggleScroll = useCallback(() => {
+        if (isPlayingRef.current) {
+            stopScroll();
+        } else {
+            startScroll();
+        }
+    }, [startScroll, stopScroll]);
 
     return (
         <>

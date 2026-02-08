@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useRef } from 'react';
 import { parseChordPro } from '../utils/chordProParser';
 import { transposeChord } from '../utils/transposer';
 import { getChordData } from '../db/chords';
@@ -8,10 +8,18 @@ import { X } from 'lucide-react';
 const SmartSongRenderer = ({ content, fontSize = 16, transpose = 0 }) => {
     const lines = useMemo(() => parseChordPro(content), [content]);
     const [selectedChord, setSelectedChord] = useState(null);
+    const [isLocked, setIsLocked] = useState(false); // Track if tooltip was opened via click
     const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+    const hoverTimeoutRef = useRef(null);
 
-    // Handle both click and hover
+    // Handle both click and hover events
     const handleChordInteraction = (e, chordName, isClick = false) => {
+        // Clear any pending close timer
+        if (hoverTimeoutRef.current) {
+            clearTimeout(hoverTimeoutRef.current);
+            hoverTimeoutRef.current = null;
+        }
+
         const cleanName = chordName.trim();
         const actualChord = transposeChord(cleanName, transpose);
         const data = getChordData(actualChord);
@@ -35,6 +43,12 @@ const SmartSongRenderer = ({ content, fontSize = 16, transpose = 0 }) => {
 
             setTooltipPos({ x, y });
             setSelectedChord({ name: actualChord, data });
+
+            if (isClick) {
+                setIsLocked(true);
+            } else {
+                setIsLocked(false);
+            }
         }
     };
 
@@ -45,21 +59,43 @@ const SmartSongRenderer = ({ content, fontSize = 16, transpose = 0 }) => {
     };
 
     const handleMouseEnter = (e, chordName) => {
-        // Only use hover on non-touch devices
-        if (window.matchMedia('(hover: hover)').matches) {
+        // Only use hover on non-touch devices and if not already locked on another chord
+        if (window.matchMedia('(hover: hover)').matches && !isLocked) {
             handleChordInteraction(e, chordName, false);
         }
     };
 
     const handleMouseLeave = () => {
-        // Only clear on hover if it wasn't a click
-        if (window.matchMedia('(hover: hover)').matches) {
-            setSelectedChord(null);
+        // Only close on hover if not locked
+        if (window.matchMedia('(hover: hover)').matches && !isLocked) {
+            // Add delay before closing to allow moving into tooltip
+            hoverTimeoutRef.current = setTimeout(() => {
+                setSelectedChord(null);
+            }, 300); // 300ms delay
+        }
+    };
+
+    const handleTooltipEnter = () => {
+        // If entering tooltip, cancel the close timer
+        if (hoverTimeoutRef.current) {
+            clearTimeout(hoverTimeoutRef.current);
+            hoverTimeoutRef.current = null;
+        }
+    };
+
+    const handleTooltipLeave = () => {
+        // Resume close timer when leaving tooltip, unless locked
+        if (!isLocked) {
+            hoverTimeoutRef.current = setTimeout(() => {
+                setSelectedChord(null);
+            }, 300);
         }
     };
 
     const closeTooltip = () => {
+        if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
         setSelectedChord(null);
+        setIsLocked(false);
     };
 
     if (!content) return <div className="text-muted">Aucun contenu à afficher</div>;
@@ -69,12 +105,15 @@ const SmartSongRenderer = ({ content, fontSize = 16, transpose = 0 }) => {
             {/* Chord Tooltip/Modal */}
             {selectedChord && (
                 <>
-                    {/* Backdrop for mobile - click to close */}
-                    <div
-                        className="chord-tooltip-backdrop"
-                        onClick={closeTooltip}
-                        aria-hidden="true"
-                    />
+                    {/* Backdrop - Only show if locked (clicked) or on mobile */}
+                    {(isLocked || !window.matchMedia('(hover: hover)').matches) && (
+                        <div
+                            className="chord-tooltip-backdrop"
+                            onClick={closeTooltip}
+                            aria-hidden="true"
+                        />
+                    )}
+
                     <div
                         className="chord-tooltip"
                         style={{
@@ -82,9 +121,11 @@ const SmartSongRenderer = ({ content, fontSize = 16, transpose = 0 }) => {
                             top: tooltipPos.y,
                             transform: 'translate(-50%, -100%) translateY(-10px)'
                         }}
+                        onMouseEnter={handleTooltipEnter}
+                        onMouseLeave={handleTooltipLeave}
                     >
                         <div className="chord-tooltip-content glass-panel" style={{ position: 'relative' }}>
-                            {/* Close button for mobile */}
+                            {/* Close button */}
                             <button
                                 className="chord-tooltip-close"
                                 onClick={closeTooltip}
