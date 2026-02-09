@@ -6,7 +6,11 @@ import {
     serverTimestamp,
     onSnapshot,
     collection,
-    getDocs
+    getDocs,
+    addDoc,
+    query,
+    orderBy,
+    limit
 } from 'firebase/firestore';
 import { db } from './config';
 
@@ -98,6 +102,41 @@ export const getAllUsers = async () => {
         }));
     } catch (error) {
         console.error("Error fetching all users:", error);
+        return [];
+    }
+};
+/**
+ * Add a history entry for XP gain
+ * @param {string} userId 
+ * @param {Object} entry { amount, reason, date }
+ */
+export const addUserHistory = async (userId, entry) => {
+    try {
+        const historyRef = collection(db, COLLECTION, userId, 'history');
+        await addDoc(historyRef, {
+            ...entry,
+            createdAt: serverTimestamp()
+        });
+    } catch (error) {
+        console.error("Error adding history:", error);
+    }
+};
+
+/**
+ * Get user XP history
+ * @param {string} userId
+ */
+export const getUserHistory = async (userId) => {
+    try {
+        const historyRef = collection(db, COLLECTION, userId, 'history');
+        const q = query(historyRef, orderBy('createdAt', 'desc'), limit(50));
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        }));
+    } catch (error) {
+        console.error("Error getting history:", error);
         return [];
     }
 };

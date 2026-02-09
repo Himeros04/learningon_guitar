@@ -1,5 +1,5 @@
 import React from 'react';
-import { Save, Maximize2, Zap } from 'lucide-react';
+import { Save, Maximize2, Zap, Camera } from 'lucide-react';
 
 const EditorToolbar = ({
     title,
@@ -14,7 +14,8 @@ const EditorToolbar = ({
     setIsFullscreen,
     handleSave,
     loading,
-    onFocusMode
+    onFocusMode,
+    onOpenOcr
 }) => {
     return (
         <div className="editor-toolbar glass-panel hide-mobile">
@@ -69,6 +70,15 @@ const EditorToolbar = ({
                     <Zap size={18} /> Focus
                 </button>
             )}
+
+            <button
+                className="btn-ghost"
+                onClick={onOpenOcr}
+                aria-label="Scanner Photo"
+                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+            >
+                <Camera size={18} /> <span className="hide-mobile">Photo</span>
+            </button>
 
             <button
                 className="btn-primary save-btn"

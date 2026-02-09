@@ -4,6 +4,7 @@ import SmartSongRenderer from './SongRenderer';
 import { Save, ChevronLeft, Maximize2, Eye } from 'lucide-react';
 import AutoScroller from './AutoScroller';
 import FullscreenReader from './FullscreenReader';
+import OcrImportModal from './OcrImportModal';
 import ImageUploader from './ImageUploader';
 import { useFolders } from '../hooks/useFirestore';
 import { getSong, addSong, updateSong } from '../firebase/firestore';
@@ -41,6 +42,7 @@ const SongEditor = () => {
     const [showDetails, setShowDetails] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [showFocusTrainer, setShowFocusTrainer] = useState(false);
+    const [showOcrModal, setShowOcrModal] = useState(false);
 
     const { folders } = useFolders();
     const scrollContainerRef = useRef(null);
@@ -120,8 +122,12 @@ const SongEditor = () => {
         try {
             if (id) {
                 await updateSong(id, songData);
+                showToast('Chanson mise à jour', 'success');
             } else {
                 await addSong(user.uid, songData);
+                // Award XP for creating a song
+                await addXp(20, `Création de chanson : ${songData.title}`);
+                showToast('Chanson créée avec succès ! (+20 XP)', 'success');
             }
 
             // Auto-add new chords to library (background task)
@@ -161,6 +167,7 @@ const SongEditor = () => {
                 handleSave={handleSave}
                 navigate={navigate}
                 onFocusMode={() => setShowFocusTrainer(true)}
+                onOpenOcr={() => setShowOcrModal(true)}
             />
 
             {/* Mastery Bar (Mobile/Desktop) */}
@@ -184,6 +191,7 @@ const SongEditor = () => {
                 handleSave={handleSave}
                 loading={loading}
                 onFocusMode={() => setShowFocusTrainer(true)}
+                onOpenOcr={() => setShowOcrModal(true)}
             />
 
             <EditorMetaPanel
@@ -256,6 +264,20 @@ const SongEditor = () => {
                 />
             )}
 
+            {/* OCR Import Modal */}
+            {showOcrModal && (
+                <OcrImportModal
+                    onClose={() => setShowOcrModal(false)}
+                    onSuccess={(data) => {
+                        if (data.title) setTitle(data.title);
+                        if (data.artist) setArtist(data.artist);
+                        if (data.content) setContent(data.content);
+                        setShowOcrModal(false);
+                        showToast('Contenu importé avec succès !', 'success');
+                    }}
+                />
+            )}
+
             <style>{`
                 .editor-container {
                     display: flex;
@@ -269,8 +291,11 @@ const SongEditor = () => {
                     display: flex;
                     gap: 1rem;
                     align-items: center;
+                    align-items: center;
                     margin-bottom: 1rem;
                     flex-wrap: wrap;
+                    position: relative;
+                    z-index: 50;
                 }
 
                 .editor-title-input {
@@ -502,6 +527,10 @@ const SongEditor = () => {
 
                 .editor-mobile-header .editor-mobile-title {
                     flex: 1;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: center;
+                    padding: 0 0.5rem;
                 }
 
                 .editor-mobile-header input {

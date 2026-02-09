@@ -1,5 +1,5 @@
 import React from 'react';
-import { ChevronLeft, Eye, Save, Maximize2, Zap } from 'lucide-react';
+import { ChevronLeft, Eye, Save, Maximize2, Zap, Camera } from 'lucide-react';
 
 const EditorMobileNav = ({
     title,
@@ -15,7 +15,8 @@ const EditorMobileNav = ({
     setIsFullscreen,
     handleSave,
     navigate,
-    onFocusMode
+    onFocusMode,
+    onOpenOcr
 }) => {
     return (
         <>
@@ -41,9 +42,14 @@ const EditorMobileNav = ({
                     />
                 </div>
                 {!showPreview && (
-                    <button className="btn-ghost" onClick={() => { setShowPreview(true); setShowDetails(false); }} style={{ padding: '0.5rem' }} aria-label="Voir l'aperçu">
-                        <Eye size={20} />
-                    </button>
+                    <>
+                        <button className="btn-ghost" onClick={onOpenOcr} style={{ padding: '0.5rem' }} aria-label="Scanner Photo">
+                            <Camera size={20} />
+                        </button>
+                        <button className="btn-ghost" onClick={() => { setShowPreview(true); setShowDetails(false); }} style={{ padding: '0.5rem' }} aria-label="Voir l'aperçu">
+                            <Eye size={20} />
+                        </button>
+                    </>
                 )}
                 <button className="btn-primary" onClick={handleSave} style={{ padding: '0.5rem' }} aria-label="Enregistrer">
                     <Save size={20} />

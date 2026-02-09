@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { getAllUsers } from '../../firebase/users';
 import { getAllSongsAdmin } from '../../firebase/firestore';
 import { useAuth } from '../../contexts/AuthContext';
-import { Loader, Music, Calendar, Mail, Trophy, ChevronDown, ChevronUp, Search } from 'lucide-react';
+import { Loader, Music, Calendar, Mail, Trophy, ChevronDown, ChevronUp, Search, Flame, User } from 'lucide-react';
 
 const AdminDashboard = () => {
     const { user } = useAuth();
@@ -110,7 +110,7 @@ const AdminDashboard = () => {
             <div className="users-table glass-panel" style={{ borderRadius: '12px', overflow: 'hidden' }}>
                 <div className="table-header" style={{
                     display: 'grid',
-                    gridTemplateColumns: '2fr 1.5fr 1fr 1fr 50px',
+                    gridTemplateColumns: '2.5fr 1.5fr 1fr 1.5fr 50px',
                     padding: '1rem',
                     background: 'rgba(255,255,255,0.02)',
                     borderBottom: '1px solid var(--border-subtle)',
@@ -119,9 +119,9 @@ const AdminDashboard = () => {
                     fontSize: '0.9rem'
                 }}>
                     <div>Utilisateur</div>
+                    <div>Activité</div>
                     <div>Création</div>
-                    <div>Partitions</div>
-                    <div>Niveau (XP)</div>
+                    <div>Stats (Songs / XP)</div>
                     <div></div>
                 </div>
 
@@ -137,7 +137,7 @@ const AdminDashboard = () => {
                                     onClick={() => setExpandedUser(isExpanded ? null : u.uid)}
                                     style={{
                                         display: 'grid',
-                                        gridTemplateColumns: '2fr 1.5fr 1fr 1fr 50px',
+                                        gridTemplateColumns: '2.5fr 1.5fr 1fr 1.5fr 50px',
                                         padding: '1rem',
                                         alignItems: 'center',
                                         cursor: 'pointer',
@@ -145,34 +145,59 @@ const AdminDashboard = () => {
                                         transition: 'background 0.2s'
                                     }}
                                 >
+                                    {/* User Info */}
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                        <div style={{
-                                            width: '32px', height: '32px', borderRadius: '50%',
-                                            background: 'var(--accent-primary)',
-                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                            fontWeight: 'bold', fontSize: '0.9rem'
-                                        }}>
-                                            {u.email?.[0].toUpperCase() || '?'}
-                                        </div>
+                                        {u.photoURL ? (
+                                            <img src={u.photoURL} alt="Avatar" style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover' }} />
+                                        ) : (
+                                            <div style={{
+                                                width: '36px', height: '36px', borderRadius: '50%',
+                                                background: 'var(--accent-primary)',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                fontWeight: 'bold', fontSize: '1rem'
+                                            }}>
+                                                {u.email?.[0].toUpperCase() || <User size={18} />}
+                                            </div>
+                                        )}
                                         <div>
-                                            <div style={{ fontWeight: '500' }}>{u.email || 'Anonyme'}</div>
-                                            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{u.uid.substring(0, 8)}...</div>
+                                            <div style={{ fontWeight: '600', color: 'white' }}>{u.displayName || u.email?.split('@')[0] || 'Anonyme'}</div>
+                                            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{u.email}</div>
+                                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', opacity: 0.7 }}>ID: {u.uid.substring(0, 8)}...</div>
                                         </div>
                                     </div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-muted)' }}>
+
+                                    {/* Activity */}
+                                    <div>
+                                        <div style={{ fontSize: '0.85rem', marginBottom: '0.2rem' }}>
+                                            {u.gamification?.lastLogin ? formatDate(u.gamification.lastLogin) : 'Jamais'}
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem', color: '#f87171' }}>
+                                            <Flame size={12} fill="#f87171" />
+                                            <span>{u.gamification?.currentStreak || 0} jours</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Joined */}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
                                         <Calendar size={14} />
                                         {formatDate(u.createdAt)}
                                     </div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                        <Music size={14} color="var(--accent-primary)" />
-                                        <span style={{ fontWeight: 'bold' }}>{userSongs.length}</span>
+
+                                    {/* Stats (Songs + XP) */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                            <Music size={14} color="var(--accent-primary)" />
+                                            <span style={{ fontWeight: 'bold' }}>{userSongs.length} songs</span>
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                            <Trophy size={14} color="#facc15" />
+                                            <span>Lvl {u.gamification?.level || 1} <span className="text-muted" style={{ fontSize: '0.8rem' }}>({u.gamification?.xp || 0} XP)</span></span>
+                                        </div>
                                     </div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                        <Trophy size={14} color="#facc15" />
-                                        <span>Lvl {u.gamification?.level || 1} <span className="text-muted" style={{ fontSize: '0.8rem' }}>({u.gamification?.xp || 0} XP)</span></span>
-                                    </div>
-                                    <div>
-                                        {isExpanded ? <ChevronUp size={16} /> : <div style={{ transform: 'rotate(0deg)' }}><ChevronDown size={16} /></div>}
+
+                                    {/* Expand Arrow */}
+                                    <div style={{ display: 'flex', justifyContent: 'center' }}>
+                                        {isExpanded ? <ChevronUp size={18} /> : <div style={{ transform: 'rotate(0deg)' }}><ChevronDown size={18} /></div>}
                                     </div>
                                 </div>
 

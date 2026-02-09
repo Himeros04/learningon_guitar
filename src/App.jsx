@@ -13,6 +13,7 @@ import { ToastProvider } from './components/Toast';
 import { GamificationProvider, useGamification } from './contexts/GamificationContext';
 import { getLevelProgress } from './services/GamificationService';
 import DailyLoot from './components/gamification/DailyLoot';
+import LevelHistory from './components/gamification/LevelHistory';
 import ErrorBoundary from './components/ErrorBoundary';
 
 function App() {
@@ -55,6 +56,7 @@ function MainLayout() {
           <Route path="/chords" element={<ChordLibrary />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="/level-history" element={<LevelHistory />} />
         </Routes>
       </main>
       <MobileNav />
@@ -114,7 +116,7 @@ function Sidebar() {
 
       {/* Gamification Stats */}
       {gamification && (
-        <div className="sidebar-gamification">
+        <Link to="/level-history" className="sidebar-gamification" style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
           <div className="level-info">
             <div className="level-badge">
               <Trophy size={14} color="#fbbf24" />
@@ -131,7 +133,7 @@ function Sidebar() {
           <div className="xp-text">
             {gamification.xp || 0} XP / {levelProgress}%
           </div>
-        </div>
+        </Link>
       )}
 
       {/* User section at bottom */}
@@ -216,6 +218,11 @@ function Sidebar() {
             padding: 1rem;
             margin-bottom: 1rem;
             border: 1px solid rgba(255,255,255,0.05);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .sidebar-gamification:hover {
+            background: rgba(255,255,255,0.08);
         }
 
         .level-info {

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Save } from 'lucide-react';
 import { addChord, updateChord, getChords } from '../firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
+import { useGamification } from '../contexts/GamificationContext';
 
 /**
  * ChordEditorModal - Redesigned
@@ -12,6 +13,7 @@ import { useAuth } from '../contexts/AuthContext';
  */
 const ChordEditorModal = ({ onClose, onSuccess, initialName = '', lockedName = false }) => {
     const { user } = useAuth();
+    const { addXp } = useGamification();
     const [name, setName] = useState(initialName);
     const [category, setCategory] = useState('Standard');
     const [tags, setTags] = useState('');
@@ -86,6 +88,7 @@ const ChordEditorModal = ({ onClose, onSuccess, initialName = '', lockedName = f
                 tags: tagsArray,
                 data: { positions: [fingering] }
             });
+            await addXp(15, `Nouvel Accord : ${name}`);
         }
         onSuccess(name);
         onClose();

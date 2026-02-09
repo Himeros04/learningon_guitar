@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useAuth } from './AuthContext';
-import { initializeUserProfile, subscribeUserProfile, updateUserGamification } from '../firebase/users';
+import { initializeUserProfile, subscribeUserProfile, updateUserGamification, addUserHistory } from '../firebase/users';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../firebase/config';
 import { calculateLevel, checkStreakStatus, XP_VALUES } from '../services/GamificationService';
 import { useToast } from '../components/Toast';
 
@@ -76,10 +78,28 @@ export const GamificationProvider = ({ children }) => {
      * Add XP to user and handle level up
      */
     const addXp = async (amount, reason) => {
-        if (!user || !profile) return;
+        if (!user) return;
 
-        const currentXp = profile.gamification?.xp || 0;
-        const currentLevel = profile.gamification?.level || 1;
+        let currentProfile = profile;
+
+        // Fallback: Fetch profile if not loaded in state
+        if (!currentProfile) {
+            try {
+                const userRef = doc(db, 'users', user.uid);
+                const snap = await getDoc(userRef);
+                if (snap.exists()) {
+                    currentProfile = snap.data();
+                }
+            } catch (err) {
+                console.error("Error fetching profile for XP:", err);
+                return;
+            }
+        }
+
+        if (!currentProfile) return;
+
+        const currentXp = currentProfile.gamification?.xp || 0;
+        const currentLevel = currentProfile.gamification?.level || 1;
 
         const newXp = currentXp + amount;
         const newLevel = calculateLevel(newXp);
@@ -91,9 +111,18 @@ export const GamificationProvider = ({ children }) => {
 
         await updateUserGamification(user.uid, updates);
 
+        // Create history entry
+        await addUserHistory(user.uid, {
+            amount,
+            reason: reason || 'Gain d\'XP',
+            date: new Date().toISOString()
+        });
+
         if (newLevel > currentLevel) {
             showToast(`Niveau Supérieur ! Vous êtes maintenant niveau ${newLevel} ! 🎉`, 'success');
-            // Play sound?
+        } else {
+            // Show toast for XP gain (user feedback)
+            showToast(`+${amount} XP ${reason ? ': ' + reason : ''}`, 'success');
         }
     };
 

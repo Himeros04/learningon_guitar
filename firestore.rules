@@ -1,0 +1,45 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper: Check if user is signed in
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Helper: Check if user owns the document
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    // Users Collection
+    // - Read: Allowed for all auth users (needed for Admin Dashboard to list users)
+    // - Write: Users can only update their own profile (XP, Daily Loot, etc.)
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && isOwner(userId);
+      
+      // Allow user to manage their own history
+      match /history/{historyId} {
+        allow read, write: if isAuthenticated() && isOwner(userId);
+      }
+    }
+
+    // Songs Collection
+    // - Read/Write: Allowed for any authenticated user
+    // (Ideally restrict to owner, but app may share songs?)
+    match /songs/{songId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Folders Collection
+    match /folders/{folderId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Chords Collection (Custom Chords)
+    match /chords/{chordId} {
+      allow read, write: if isAuthenticated();
+    }
+  }
+}
